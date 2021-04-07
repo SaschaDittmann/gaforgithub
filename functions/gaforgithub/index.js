@@ -1,6 +1,7 @@
 require('dotenv').config();
-const axios = require('axios');
 const retry = require('retry');
+const axios = require('axios');
+const FormData = require('form-data');
 const fs = require('fs');
 
 module.exports = async function (context, req) {
@@ -33,18 +34,18 @@ async function trackVisit(context, req, cid, cookies) {
     ip = req.headers["x-forwarded-for"].split(":")[0];
   }
 
-  var bodyFormData = new FormData();
-  bodyFormData.append('v', '1');
-  bodyFormData.append('tid', process.env.PROPERTY_ID);
-  bodyFormData.append('cid', cid);
-  bodyFormData.append('t', pageview);
-  bodyFormData.append('dp', repo);
+  const form = new FormData();
+  form.append('v', '1');
+  form.append('tid', process.env.PROPERTY_ID);
+  form.append('cid', cid);
+  form.append('t', pageview);
+  form.append('dp', repo);
   //GitHub currently uses Camo, so all the below details are hidden unfortunately
   //listed here in case you want to use this in an environment other than GitHub
   //https://help.github.com/articles/about-anonymized-image-urls/
-  bodyFormData.append('dr', encodeURIComponent(req.headers['referer'])); //referer
-  bodyFormData.append('uip', ip);
-  bodyFormData.append('ua', req.headers['user-agent']);
+  form.append('dr', encodeURIComponent(req.headers['referer'])); //referer
+  form.append('uip', ip);
+  form.append('ua', req.headers['user-agent']);
 
   const operation = retry.operation({
     retries: 5,
@@ -60,7 +61,7 @@ async function trackVisit(context, req, cid, cookies) {
       const response = await axios({
         method: 'post',
         url: 'https://www.google-analytics.com/collect',
-        data: bodyFormData,
+        data: form,
         headers: { "Content-Type": "multipart/form-data" },
       });
       sendResponse(context, req, cookies);

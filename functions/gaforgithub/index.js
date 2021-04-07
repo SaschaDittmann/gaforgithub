@@ -61,19 +61,24 @@ function trackVisit(context, req, cid, cookies) {
     randomize: true,
   });
 
-  operation.attempt(async (currentAttempt) => {
-    context.log('sending request: ', currentAttempt, ' attempt');
+  operation.attempt(function(currentAttempt) {
+    context.log('sending request:', currentAttempt, 'attempt');
     try {
-      const response = await axios({
-        method: 'post',
-        url: 'https://www.google-analytics.com/collect',
-        data: form,
-        headers: { "Content-Type": "multipart/form-data" },
+      axios.post(
+        'https://www.google-analytics.com/collect',
+        form,
+        { headers: { "Content-Type": "multipart/form-data" } }
+      ).then(function (response) {
+        context.log('response code: ', response.status, ', text:', response.statusText);
+        sendResponse(context, req, cookies);
+      })
+      .catch(function (error) {
+        context.log('failed sending request (', currentAttempt, ' attempt)');
+        context.log(error);
+        if (operation.retry(error)) { return; }
       });
-      context.log('response code: ', response.status, ', text:', response.statusText);
-
-      sendResponse(context, req, cookies);
     } catch (e) {
+      context.log('failed request (', currentAttempt, ' attempt)');
       if (operation.retry(e)) { return; }
     }
   });

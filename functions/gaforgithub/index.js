@@ -50,6 +50,9 @@ function trackVisit(context, req, cid, cookies) {
   //listed here in case you want to use this in an environment other than GitHub
   //https://help.github.com/articles/about-anonymized-image-urls/
   form.append('dr', encodeURIComponent(req.headers['referer'])); //referer
+  if (process.env.ANONYMIZE_IP) {
+    form.append('aip', process.env.ANONYMIZE_IP);
+  }
   form.append('uip', ip);
   form.append('ua', req.headers['user-agent']);
   context.log('formdata: repo ' + repo + ', referer ' + req.headers['referer'] + ', uip ' + ip + ', cid ' + cid);

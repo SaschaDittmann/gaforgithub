@@ -1,6 +1,8 @@
 {
     "version": "2.0",
-    "watchDirectories": [ "shared" ],
+    "watchDirectories": [
+        "shared"
+    ],
     "healthMonitor": {
         "enabled": true,
         "healthCheckInterval": "00:00:10",
@@ -10,7 +12,12 @@
     },
     "functionTimeout": "00:05:00",
     "logging": {
-        "fileLoggingMode": "debugOnly"
+        "applicationInsights": {
+            "samplingSettings": {
+                "isEnabled": true,
+                "excludedTypes": "Request"
+            }
+        }
     },
     "extensions": {
         "http": {
@@ -18,5 +25,9 @@
             "maxConcurrentRequests": 5,
             "maxOutstandingRequests": 30
         }
+    },
+    "extensionBundle": {
+        "id": "Microsoft.Azure.Functions.ExtensionBundle",
+        "version": "[1.*, 2.0.0)"
     }
 }

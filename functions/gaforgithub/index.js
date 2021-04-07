@@ -45,7 +45,7 @@ function trackVisit(context, req, cid, cookies) {
   form.append('tid', process.env.PROPERTY_ID);
   form.append('cid', cid);
   form.append('t', 'pageview');
-  form.append('dp', repo);
+  form.append('dp', encodeURIComponent('/' + repo));
   //GitHub currently uses Camo, so all the below details are hidden unfortunately
   //listed here in case you want to use this in an environment other than GitHub
   //https://help.github.com/articles/about-anonymized-image-urls/

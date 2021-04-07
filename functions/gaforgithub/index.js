@@ -1,12 +1,12 @@
 require('dotenv').config();
-const request = require('requestretry');
+const axios = require('axios');
+const retry = require('retry');
 const fs = require('fs');
 
-module.exports = function (context, req) {
+module.exports = async function (context, req) {
   context.log('JavaScript HTTP trigger function processed a request.');
 
   if (req.query.repo) {
-
     const cookies = parseCookies(req.headers.cookie);
 
     //see if there is a cookie with name GAGH
@@ -15,10 +15,8 @@ module.exports = function (context, req) {
     } else {
       const cid = uuidv4(); //generate an anonymous client ID
       cookies.GAGH = cid;
-      trackVisit(context, req, cid, cookies);
+      await trackVisit(context, req, cid, cookies);
     }
-
-
   } else {
     context.res = {
       status: 400,
@@ -28,38 +26,46 @@ module.exports = function (context, req) {
   }
 };
 
-function trackVisit(context, req, cid, cookies) {
+async function trackVisit(context, req, cid, cookies) {
   const repo = req.query.repo;
   let ip = "";
   if (req.headers["x-forwarded-for"]) {
     ip = req.headers["x-forwarded-for"].split(":")[0];
   }
 
-  request({
-    url: 'https://www.google-analytics.com/collect',
-    json: false,
-    method: 'POST',
-    form: {
-      v: '1',
-      tid: process.env.PROPERTY_ID,
-      cid: cid,
-      t: 'pageview',
-      dp: repo,
-      //GitHub currently uses Camo, so all the below details are hidden unfortunately
-      //listed here in case you want to use this in an environment other than GitHub
-      //https://help.github.com/articles/about-anonymized-image-urls/
-      dr: encodeURIComponent(req.headers['referer']), //referer
-      uip: ip, //user's IP
-      ua: req.headers['user-agent'] //user agent
-    },
-    // The below parameters are specific to request-retry
-    maxAttempts: 5, // (default) try 5 times
-    retryDelay: 5000, // (default) wait for 5s before trying again
-    retryStrategy: request.RetryStrategies.HTTPOrNetworkError // (default) retry on 5xx or network errors
-  }, function (err, response, body) {
-    // this callback will only be called when the request succeeded or after maxAttempts or on error
-    if (response) {
+  var bodyFormData = new FormData();
+  bodyFormData.append('v', '1');
+  bodyFormData.append('tid', process.env.PROPERTY_ID);
+  bodyFormData.append('cid', cid);
+  bodyFormData.append('t', pageview);
+  bodyFormData.append('dp', repo);
+  //GitHub currently uses Camo, so all the below details are hidden unfortunately
+  //listed here in case you want to use this in an environment other than GitHub
+  //https://help.github.com/articles/about-anonymized-image-urls/
+  bodyFormData.append('dr', encodeURIComponent(req.headers['referer'])); //referer
+  bodyFormData.append('uip', ip);
+  bodyFormData.append('ua', req.headers['user-agent']);
+
+  const operation = retry.operation({
+    retries: 5,
+    factor: 3,
+    minTimeout: 5 * 1000,
+    maxTimeout: 60 * 1000,
+    randomize: true,
+  });
+
+  operation.attempt(async (currentAttempt) => {
+    console.log('sending request: ', currentAttempt, ' attempt');
+    try {
+      const response = await axios({
+        method: 'post',
+        url: 'https://www.google-analytics.com/collect',
+        data: bodyFormData,
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       sendResponse(context, req, cookies);
+    } catch (e) {
+      if (operation.retry(e)) { return; }
     }
   });
 }

@@ -3,12 +3,12 @@
   "description": "Unofficial Google Analytics tracking for GitHub",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {
-  },
+  "scripts": {},
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "axios": "^0.21.1",
     "dotenv": "^8.2.0",
-    "requestretry": "^5.0.0"
+    "retry": "^0.12.0"
   }
 }

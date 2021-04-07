@@ -5,7 +5,7 @@ const FormData = require('form-data');
 const fs = require('fs');
 
 module.exports = async function (context, req) {
-  context.log('JavaScript HTTP trigger function processed a request.');
+  context.log('Function received a request.');
 
   if (req.query.repo) {
     const cookies = parseCookies(req.headers.cookie);
@@ -19,6 +19,7 @@ module.exports = async function (context, req) {
       await trackVisit(context, req, cid, cookies);
     }
   } else {
+    context.log('Query string "repo" missing.');
     context.res = {
       status: 400,
       body: "Please pass a repo on the query string"
@@ -64,6 +65,8 @@ async function trackVisit(context, req, cid, cookies) {
         data: form,
         headers: { "Content-Type": "multipart/form-data" },
       });
+      console.log('response code: ', response.status, ', text:', response.statusText);
+
       sendResponse(context, req, cookies);
     } catch (e) {
       if (operation.retry(e)) { return; }

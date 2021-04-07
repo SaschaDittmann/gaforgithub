@@ -8,16 +8,20 @@ module.exports = async function (context, req) {
   context.log('Function received a request.');
 
   if (req.query.repo) {
+    // create/get client id
+    let cid = "00000000-0000-0000-0000-000000000000";
     const cookies = parseCookies(req.headers.cookie);
-
-    //see if there is a cookie with name GAGH
     if ('GAGH' in cookies) {
-      sendResponse(context, req, cookies);
+      console.log('Existing GAGH cookie found.');
+      cid = cookies.GAGH;
     } else {
-      const cid = uuidv4(); //generate an anonymous client ID
+      console.log('Creating new cid.');
+      cid = uuidv4(); //generate an anonymous client ID
       cookies.GAGH = cid;
-      await trackVisit(context, req, cid, cookies);
     }
+    console.log('cid:', cid);
+
+    trackVisit(context, req, cid, cookies);
   } else {
     context.log('Query string "repo" missing.');
     context.res = {
@@ -28,7 +32,8 @@ module.exports = async function (context, req) {
   }
 };
 
-async function trackVisit(context, req, cid, cookies) {
+function trackVisit(context, req, cid, cookies) {
+  context.log('Tracking visit.');
   const repo = req.query.repo;
   let ip = "";
   if (req.headers["x-forwarded-for"]) {

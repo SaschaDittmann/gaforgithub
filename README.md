@@ -1,6 +1,6 @@
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
-[![](https://gaforgithub.azurewebsites.net/api?repo=gaforgithub)](https://github.com/dgkanatsios/gaforgithub)
+[![](https://ga4gh.azurewebsites.net/api?repo=gaforgithub)](https://github.com/SaschaDittmann/gaforgithub)
 
 # Unofficial Google Analytics tracking for GitHub projects
 This is an unofficial Google Analytics for GitHub repositories tracking using [Azure Functions](https://functions.azure.com) and written in Node.js. You can use this to track pageviews in all pages that contain Markdown, like READMEs, wikis etc.
@@ -40,4 +40,4 @@ The deployment uses Azure Functions' [Consumption Plan](https://docs.microsoft.c
 
 ## Inspiration
 
-Inspired by igrorik's solution [here](https://github.com/igrigorik/ga-beacon) that works with Go language and Google App Engine.
+This code is based on Dimitris-Ilias Gkanatsios solution [here](https://github.com/dgkanatsios/gaforgithub), which was inspired by igrorik's solution [here](https://github.com/igrigorik/ga-beacon) that works with Go language and Google App Engine.

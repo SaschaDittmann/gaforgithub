@@ -12,14 +12,14 @@ module.exports = async function (context, req) {
     let cid = "00000000-0000-0000-0000-000000000000";
     const cookies = parseCookies(req.headers.cookie);
     if ('GAGH' in cookies) {
-      console.log('Existing GAGH cookie found.');
+      context.log('Existing GAGH cookie found.');
       cid = cookies.GAGH;
     } else {
-      console.log('Creating new cid.');
+      context.log('Creating new cid.');
       cid = uuidv4(); //generate an anonymous client ID
       cookies.GAGH = cid;
     }
-    console.log('cid:', cid);
+    context.log('cid:', cid);
 
     trackVisit(context, req, cid, cookies);
   } else {
@@ -62,7 +62,7 @@ function trackVisit(context, req, cid, cookies) {
   });
 
   operation.attempt(async (currentAttempt) => {
-    console.log('sending request: ', currentAttempt, ' attempt');
+    context.log('sending request: ', currentAttempt, ' attempt');
     try {
       const response = await axios({
         method: 'post',
@@ -70,7 +70,7 @@ function trackVisit(context, req, cid, cookies) {
         data: form,
         headers: { "Content-Type": "multipart/form-data" },
       });
-      console.log('response code: ', response.status, ', text:', response.statusText);
+      context.log('response code: ', response.status, ', text:', response.statusText);
 
       sendResponse(context, req, cookies);
     } catch (e) {

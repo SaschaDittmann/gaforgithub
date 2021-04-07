@@ -3,7 +3,9 @@
   "description": "Unofficial Google Analytics tracking for GitHub",
   "version": "1.0.0",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "test": "echo \"No tests yet...\""
+  },
   "author": "",
   "license": "MIT",
   "dependencies": {

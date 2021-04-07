@@ -4,7 +4,7 @@ const axios = require('axios');
 const FormData = require('form-data');
 const fs = require('fs');
 
-module.exports = async function (context, req) {
+module.exports = function (context, req) {
   context.log('Function received a request.');
 
   if (req.query.repo) {
@@ -19,7 +19,7 @@ module.exports = async function (context, req) {
       cid = uuidv4(); //generate an anonymous client ID
       cookies.GAGH = cid;
     }
-    context.log('cid:', cid);
+    context.log('cid: ' + cid);
 
     trackVisit(context, req, cid, cookies);
   } else {
@@ -52,6 +52,7 @@ function trackVisit(context, req, cid, cookies) {
   form.append('dr', encodeURIComponent(req.headers['referer'])); //referer
   form.append('uip', ip);
   form.append('ua', req.headers['user-agent']);
+  context.log('formdata: repo ' + repo + ', referer ' + req.headers['referer'] + ', uip ' + ip + ', cid ' + cid);
 
   const operation = retry.operation({
     retries: 5,
@@ -62,23 +63,23 @@ function trackVisit(context, req, cid, cookies) {
   });
 
   operation.attempt(function(currentAttempt) {
-    context.log('sending request:', currentAttempt, 'attempt');
+    context.log('sending request: ' + currentAttempt + ' attempt');
     try {
       axios.post(
         'https://www.google-analytics.com/collect',
         form,
         { headers: { "Content-Type": "multipart/form-data" } }
       ).then(function (response) {
-        context.log('response code: ', response.status, ', text:', response.statusText);
+        context.log('response code: ' + response.status);
         sendResponse(context, req, cookies);
       })
       .catch(function (error) {
-        context.log('failed sending request (', currentAttempt, ' attempt)');
+        context.log('failed sending request (' + currentAttempt + ' attempt)');
         context.log(error);
         if (operation.retry(error)) { return; }
       });
     } catch (e) {
-      context.log('failed request (', currentAttempt, ' attempt)');
+      context.log('failed request (' + currentAttempt + ' attempt)');
       if (operation.retry(e)) { return; }
     }
   });

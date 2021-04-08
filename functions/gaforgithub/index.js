@@ -12,18 +12,18 @@ module.exports = function (context, req) {
     let cid = "00000000-0000-0000-0000-000000000000";
     const cookies = parseCookies(req.headers.cookie);
     if ('GAGH' in cookies) {
-      context.log('Existing GAGH cookie found.');
+      context.log.verbose('Existing GAGH cookie found.');
       cid = cookies.GAGH;
     } else {
-      context.log('Creating new cid.');
+      context.log.verbose('Creating new cid.');
       cid = uuidv4(); //generate an anonymous client ID
       cookies.GAGH = cid;
     }
-    context.log('cid: ' + cid);
+    context.log.verbose('cid: ' + cid);
 
     trackVisit(context, req, cid, cookies);
   } else {
-    context.log('Query string "repo" missing.');
+    context.log.warn('Query string "repo" missing.');
     context.res = {
       status: 400,
       body: "Please pass a repo on the query string"
@@ -33,11 +33,15 @@ module.exports = function (context, req) {
 };
 
 function trackVisit(context, req, cid, cookies) {
-  context.log('Tracking visit.');
+  context.log.verbose('Tracking visit.');
   const repo = req.query.repo;
   let ip = "";
   if (req.headers["x-forwarded-for"]) {
     ip = req.headers["x-forwarded-for"].split(":")[0];
+  }
+  let referer = "";
+  if (typeof req.headers['referer'] !== 'undefined') {
+    referer = req.headers['referer'];
   }
 
   const form = new FormData();
@@ -49,18 +53,22 @@ function trackVisit(context, req, cid, cookies) {
   //GitHub currently uses Camo, so all the below details are hidden unfortunately
   //listed here in case you want to use this in an environment other than GitHub
   //https://help.github.com/articles/about-anonymized-image-urls/
-  form.append('dr', encodeURIComponent(req.headers['referer'])); //referer
+  if (referer) {
+    context.log.verbose("set referrer");
+    form.append('dr', encodeURIComponent(referer));
+  }
   if (process.env.ANONYMIZE_IP) {
+    context.log.verbose("set anonymize ip");
     form.append('aip', process.env.ANONYMIZE_IP);
   }
   form.append('uip', ip);
   form.append('ua', req.headers['user-agent']);
-  context.log('formdata: repo ' + repo + ', referer ' + req.headers['referer'] + ', uip ' + ip + ', cid ' + cid);
+  context.log('formdata: repo=' + repo + ', referer=' + referer + ', uip=' + ip + ', cid=' + cid);
+  context.log(form.toString());
 
   const operation = retry.operation({
     retries: 5,
-    factor: 3,
-    minTimeout: 5 * 1000,
+    minTimeout: 1 * 1000,
     maxTimeout: 60 * 1000,
     randomize: true,
   });
@@ -73,16 +81,16 @@ function trackVisit(context, req, cid, cookies) {
         form,
         { headers: { "Content-Type": "multipart/form-data" } }
       ).then(function (response) {
-        context.log('response code: ' + response.status);
+        context.log.verbose('response code: ' + response.status);
         sendResponse(context, req, cookies);
       })
       .catch(function (error) {
-        context.log('failed sending request (' + currentAttempt + ' attempt)');
+        context.log.error('failed sending request (' + currentAttempt + ' attempt)');
         context.log(error);
         if (operation.retry(error)) { return; }
       });
     } catch (e) {
-      context.log('failed request (' + currentAttempt + ' attempt)');
+      context.log.error('failed request (' + currentAttempt + ' attempt)');
       if (operation.retry(e)) { return; }
     }
   });

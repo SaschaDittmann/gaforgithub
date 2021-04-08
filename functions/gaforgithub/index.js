@@ -64,7 +64,6 @@ function trackVisit(context, req, cid, cookies) {
   form.append('uip', ip);
   form.append('ua', req.headers['user-agent']);
   context.log('formdata: repo=' + repo + ', referer=' + referer + ', uip=' + ip + ', cid=' + cid);
-  context.log(form.toString());
 
   const operation = retry.operation({
     retries: 5,

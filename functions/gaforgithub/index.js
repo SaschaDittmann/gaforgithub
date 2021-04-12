@@ -1,7 +1,6 @@
 require('dotenv').config();
 const retry = require('retry');
 const axios = require('axios');
-const FormData = require('form-data');
 const fs = require('fs');
 
 module.exports = function (context, req) {
@@ -44,25 +43,20 @@ function trackVisit(context, req, cid, cookies) {
     referer = req.headers['referer'];
   }
 
-  const form = new FormData();
-  form.append('v', '1');
-  form.append('tid', process.env.PROPERTY_ID);
-  form.append('cid', cid);
-  form.append('t', 'pageview');
-  form.append('dp', encodeURIComponent('/' + repo));
+  const params = new URLSearchParams({
+    v: 1,
+    tid: process.env.PROPERTY_ID,
+    cid: cid,
+    t: 'pageview',
+    dp: '/' + repo,
+    dr: referer ? referer : null,
+    aip: process.env.ANONYMIZE_IP ? process.env.ANONYMIZE_IP : null,
+    uip: ip,
+    ua: req.headers['user-agent'],
+  });
   //GitHub currently uses Camo, so all the below details are hidden unfortunately
   //listed here in case you want to use this in an environment other than GitHub
   //https://help.github.com/articles/about-anonymized-image-urls/
-  if (referer) {
-    context.log.verbose("set referrer");
-    form.append('dr', encodeURIComponent(referer));
-  }
-  if (process.env.ANONYMIZE_IP) {
-    context.log.verbose("set anonymize ip");
-    form.append('aip', process.env.ANONYMIZE_IP);
-  }
-  form.append('uip', ip);
-  form.append('ua', req.headers['user-agent']);
   context.log('formdata: repo=' + repo + ', referer=' + referer + ', uip=' + ip + ', cid=' + cid);
 
   const operation = retry.operation({
@@ -77,8 +71,8 @@ function trackVisit(context, req, cid, cookies) {
     try {
       axios.post(
         'https://www.google-analytics.com/collect',
-        form,
-        { headers: { "Content-Type": "multipart/form-data" } }
+        {},
+        { params: params }
       ).then(function (response) {
         context.log.verbose('response code: ' + response.status);
         sendResponse(context, req, cookies);

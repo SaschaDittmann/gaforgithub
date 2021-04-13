@@ -1,6 +1,6 @@
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
-[![](https://ga4gh.azurewebsites.net/api?repo=gaforgithub)](https://github.com/SaschaDittmann/gaforgithub)
+[![](https://ga4gh.datainsights.cloud/api?repo=gaforgithub)](https://github.com/SaschaDittmann/gaforgithub)
 
 # Unofficial Google Analytics tracking for GitHub projects
 This is an unofficial Google Analytics for GitHub repositories tracking using [Azure Functions](https://functions.azure.com) and written in Node.js. You can use this to track pageviews in all pages that contain Markdown, like READMEs, wikis etc.

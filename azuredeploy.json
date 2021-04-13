@@ -17,7 +17,7 @@
         "hostingPlanName": {
             "type": "string",
             "metadata": {
-                "description": "The name of the App Service plan that you wish to create. Pick a distinctive name like 'gaforgithubplan'."
+                "description": "The name of the App Service plan that you wish to create. Pick a distinctive name like 'gaforgithub-appplan'."
             }
         },
         "storageAccountType": {
@@ -31,33 +31,22 @@
             "metadata": {
                 "description": "Storage Account type. If you are not sure which one to pick, just leave the default Standard_LRS."
             }
-        },
-        "repoURL": {
-            "type": "string",
-            "defaultValue": "https://github.com/dgkanatsios/gaforgithub",
-            "metadata": {
-                "description": "The URL for the GitHub repository that contains the project to deploy."
-            }
-        },
-        "branch": {
-            "type": "string",
-            "defaultValue": "master",
-            "metadata": {
-                "description": "The branch of the GitHub repository to use."
-            }
         }
     },
     "variables": {
         "functionAppName": "[parameters('appName')]",
+        "appInsightsName": "[concat(parameters('appName'), '-appinsights')]",
         "hostingPlanName": "[parameters('hostingPlanName')]",
         "storageAccountName": "[concat(uniquestring(resourceGroup().id), 'azfunctions')]",
-        "storageAccountid": "[concat(resourceGroup().id,'/providers/','Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]"
+        "storageAccountid": "[concat(resourceGroup().id,'/providers/','Microsoft.Storage/storageAccounts/', variables('storageAccountName'))]",
+        "repoURL": "https://github.com/SaschaDittmann/gaforgithub",
+        "branch": "master"
     },
     "resources": [{
             "type": "microsoft.insights/components",
             "apiVersion": "2015-05-01",
-            "name": "[variables('functionAppName')]",
-            "location": "South Central US",
+            "name": "[variables('appInsightsName')]",
+            "location": "[resourceGroup().location]",
             "properties": {
                 "ApplicationId": "[variables('functionAppName')]"
             }
@@ -92,7 +81,7 @@
             "dependsOn": [
                 "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
                 "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName'))]",
-                "[resourceId('microsoft.insights/components/', variables('functionAppName'))]"
+                "[resourceId('microsoft.insights/components/', variables('appInsightsName'))]"
             ],
             "properties": {
                 "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('hostingPlanName'))]",
@@ -128,7 +117,7 @@
                         },
                         {
                             "name":"APPINSIGHTS_INSTRUMENTATIONKEY",
-                            "value":"[reference(resourceId('microsoft.insights/components/', variables('functionAppName')), '2015-05-01').InstrumentationKey]"
+                            "value":"[reference(resourceId('microsoft.insights/components/', variables('appInsightsName')), '2015-05-01').InstrumentationKey]"
                         },
                         {
                             "name": "Project",
@@ -145,8 +134,8 @@
                     "[resourceId('Microsoft.Web/Sites', variables('functionAppName'))]"
                 ],
                 "properties": {
-                    "RepoUrl": "[parameters('repoURL')]",
-                    "branch": "[parameters('branch')]",
+                    "RepoUrl": "[variables('repoURL')]",
+                    "branch": "[variables('branch')]",
                     "IsManualIntegration": true
                 }
             }]

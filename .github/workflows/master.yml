@@ -30,7 +30,7 @@ jobs:
         popd
     - name: 'Deploy Azure Functions to Europe'
       uses: Azure/functions-action@v1
-      id: fa
+      id: deploy-eu
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME }}
         slot-name: 'production'
@@ -38,7 +38,7 @@ jobs:
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_EU }}
     - name: 'Deploy Azure Functions to the US'
       uses: Azure/functions-action@v1
-      id: fa
+      id: deploy-us
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME }}
         slot-name: 'production'
@@ -46,7 +46,7 @@ jobs:
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFIL_US }}
     - name: 'Deploy Azure Functions to Asia'
       uses: Azure/functions-action@v1
-      id: fa
+      id: deploy-asia
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME }}
         slot-name: 'production'

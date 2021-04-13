@@ -28,11 +28,27 @@ jobs:
         npm run build --if-present
         npm run test --if-present
         popd
-    - name: 'Run Azure Functions Action'
+    - name: 'Deploy Azure Functions to Europe'
       uses: Azure/functions-action@v1
       id: fa
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME }}
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE }}
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_EU }}
+    - name: 'Deploy Azure Functions to the US'
+      uses: Azure/functions-action@v1
+      id: fa
+      with:
+        app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME }}
+        slot-name: 'production'
+        package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFIL_US }}
+    - name: 'Deploy Azure Functions to Asia'
+      uses: Azure/functions-action@v1
+      id: fa
+      with:
+        app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME }}
+        slot-name: 'production'
+        package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ASIA }}

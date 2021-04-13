@@ -43,7 +43,7 @@ jobs:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME }}
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
-        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFIL_US }}
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_US }}
     - name: 'Deploy Azure Functions to Asia'
       uses: Azure/functions-action@v1
       id: deploy-asia

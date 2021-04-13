@@ -17,7 +17,8 @@ GitHub uses camo to cache and serve images ([details](https://help.github.com/ar
 2. When you are done, copy your Tracking ID (should be in the format UA-XXXX-Y)
 3. Click the button below to deploy the project in your Azure subscription
 
-<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdgkanatsios%2Fgaforgithub%2Fmaster%2Fazuredeploy.json" target="_blank"><img src="http://azuredeploy.net/deploybutton.png"/></a>
+[![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FSaschaDittmann%2Fgaforgithub%2Fmaster%2Fazuredeploy.json)
+[![Visualize](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/visualizebutton.svg?sanitize=true)](http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2FSaschaDittmann%2Fgaforgithub%2Fmaster%2Fazuredeploy.json)
 
 4. When the deployment is completed, copy your Functions URL (should be something like `https://yourfunctionname.azurewebsites.net`)
 5. Edit your README files in your repos that you want to track (or any files that contain markdown) and insert the necessary code.

@@ -52,3 +52,11 @@ jobs:
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ASIA }}
+    - name: 'Deploy Azure Functions to Australia'
+      uses: Azure/functions-action@v1
+      id: deploy-australia
+      with:
+        app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME }}
+        slot-name: 'production'
+        package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
+        publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_AUSTRALIA }}

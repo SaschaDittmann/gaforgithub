@@ -45,7 +45,7 @@ resource "azurerm_function_app" "func_app" {
   storage_account_access_key = azurerm_storage_account.func_store.primary_access_key
   version                    = "~3"
   enable_builtin_logging     = false
-  app_settings               = {
+  app_settings = {
     ANONYMIZE_IP                          = "1"
     APPINSIGHTS_INSTRUMENTATIONKEY        = azurerm_application_insights.func_appinsights.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.func_appinsights.connection_string

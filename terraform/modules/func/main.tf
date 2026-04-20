@@ -8,16 +8,13 @@ resource "azurerm_storage_account" "func_store" {
   min_tls_version          = "TLS1_2"
 }
 
-resource "azurerm_app_service_plan" "func_appplan" {
+# azurerm_service_plan replaces the deprecated azurerm_app_service_plan in AzureRM 4.x
+resource "azurerm_service_plan" "func_appplan" {
   name                = var.func_appplan_name
   location            = var.func_location
   resource_group_name = var.rg_name
-  kind                = "FunctionApp"
-
-  sku {
-    tier = "Dynamic"
-    size = "Y1"
-  }
+  os_type             = "Windows"
+  sku_name            = "Y1"
 }
 
 resource "azurerm_application_insights" "func_appinsights" {
@@ -36,40 +33,49 @@ resource "azurerm_app_service_certificate" "func_certificate" {
   password            = var.cert_password
 }
 
-resource "azurerm_function_app" "func_app" {
+# azurerm_windows_function_app replaces the deprecated azurerm_function_app in AzureRM 4.x
+resource "azurerm_windows_function_app" "func_app" {
   name                       = var.func_name
   location                   = var.func_location
   resource_group_name        = var.rg_name
-  app_service_plan_id        = azurerm_app_service_plan.func_appplan.id
+  service_plan_id            = azurerm_service_plan.func_appplan.id
   storage_account_name       = azurerm_storage_account.func_store.name
   storage_account_access_key = azurerm_storage_account.func_store.primary_access_key
-  version                    = "~3"
-  enable_builtin_logging     = false
+  functions_extension_version = "~4"
+  builtin_logging_enabled    = false
+
+  site_config {
+    application_stack {
+      node_version = "~20"
+    }
+  }
+
   app_settings = {
-    ANONYMIZE_IP                          = "1"
+    ANONYMIZE_IP                          = var.anonymize_ip
     APPINSIGHTS_INSTRUMENTATIONKEY        = azurerm_application_insights.func_appinsights.instrumentation_key
     APPLICATIONINSIGHTS_CONNECTION_STRING = azurerm_application_insights.func_appinsights.connection_string
     FUNCTIONS_WORKER_RUNTIME              = "node"
     NODE_ENV                              = "production"
-    PROPERTY_ID                           = var.property_id
-    WEBSITE_NODE_DEFAULT_VERSION          = "~14"
+    GA_MEASUREMENT_ID                     = var.ga_measurement_id
+    GA_API_SECRET                         = var.ga_api_secret
+    WEBSITE_NODE_DEFAULT_VERSION          = "~20"
   }
 }
 
-resource "azurerm_traffic_manager_endpoint" "func_endpoint" {
-  name                = var.traffic_manager_endpoint_name
-  resource_group_name = var.rg_name
-  profile_name        = var.traffic_manager_profile_name
-  type                = "azureEndpoints"
-  target_resource_id  = azurerm_function_app.func_app.id
+resource "azurerm_traffic_manager_azure_endpoint" "func_endpoint" {
+  name               = var.traffic_manager_endpoint_name
+  profile_id         = "/subscriptions/${data.azurerm_subscription.current.subscription_id}/resourceGroups/${var.rg_name}/providers/Microsoft.Network/trafficManagerProfiles/${var.traffic_manager_profile_name}"
+  target_resource_id = azurerm_windows_function_app.func_app.id
 }
+
+data "azurerm_subscription" "current" {}
 
 resource "azurerm_app_service_custom_hostname_binding" "hostname_binding" {
   hostname            = var.custom_hostname
-  app_service_name    = azurerm_function_app.func_app.name
+  app_service_name    = azurerm_windows_function_app.func_app.name
   resource_group_name = var.rg_name
   depends_on = [
-    azurerm_traffic_manager_endpoint.func_endpoint
+    azurerm_traffic_manager_azure_endpoint.func_endpoint
   ]
   lifecycle {
     ignore_changes = [ssl_state, thumbprint]

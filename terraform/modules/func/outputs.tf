@@ -1,3 +1,3 @@
 output "func_url" {
-  value = azurerm_function_app.func_app.default_hostname
+  value = azurerm_windows_function_app.func_app.default_hostname
 }

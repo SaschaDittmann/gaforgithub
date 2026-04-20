@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = ">= 2.55"
+      version = ">= 4.0"
     }
   }
 }
@@ -25,7 +25,7 @@ resource "azurerm_traffic_manager_profile" "traffic_manager" {
     ttl           = 60
   }
   monitor_config {
-    protocol                     = "http"
+    protocol                     = "HTTP"
     port                         = 80
     path                         = "/"
     interval_in_seconds          = 30
@@ -43,7 +43,9 @@ module "func_eu" {
   func_appinsights_name         = join("-", [var.prefix, "eu"])
   func_appplan_name             = join("-", [var.prefix, "eu", "appplan"])
   func_name                     = join("-", [var.prefix, "eu"])
-  property_id                   = var.property_id
+  ga_measurement_id             = var.ga_measurement_id
+  ga_api_secret                 = var.ga_api_secret
+  anonymize_ip                  = var.anonymize_ip
   custom_hostname               = var.custom_hostname
   cert_password                 = var.cert_password
   traffic_manager_profile_name  = azurerm_traffic_manager_profile.traffic_manager.name
@@ -59,7 +61,9 @@ module "func_us" {
   func_appinsights_name         = join("-", [var.prefix, "us"])
   func_appplan_name             = join("-", [var.prefix, "us", "appplan"])
   func_name                     = join("-", [var.prefix, "us"])
-  property_id                   = var.property_id
+  ga_measurement_id             = var.ga_measurement_id
+  ga_api_secret                 = var.ga_api_secret
+  anonymize_ip                  = var.anonymize_ip
   custom_hostname               = var.custom_hostname
   cert_password                 = var.cert_password
   traffic_manager_profile_name  = azurerm_traffic_manager_profile.traffic_manager.name
@@ -75,7 +79,9 @@ module "func_asia" {
   func_appinsights_name         = join("-", [var.prefix, "asia"])
   func_appplan_name             = join("-", [var.prefix, "asia", "appplan"])
   func_name                     = join("-", [var.prefix, "asia"])
-  property_id                   = var.property_id
+  ga_measurement_id             = var.ga_measurement_id
+  ga_api_secret                 = var.ga_api_secret
+  anonymize_ip                  = var.anonymize_ip
   custom_hostname               = var.custom_hostname
   cert_password                 = var.cert_password
   traffic_manager_profile_name  = azurerm_traffic_manager_profile.traffic_manager.name
@@ -91,7 +97,9 @@ module "func_australia" {
   func_appinsights_name         = join("-", [var.prefix, "australia"])
   func_appplan_name             = join("-", [var.prefix, "australia", "appplan"])
   func_name                     = join("-", [var.prefix, "australia"])
-  property_id                   = var.property_id
+  ga_measurement_id             = var.ga_measurement_id
+  ga_api_secret                 = var.ga_api_secret
+  anonymize_ip                  = var.anonymize_ip
   custom_hostname               = var.custom_hostname
   cert_password                 = var.cert_password
   traffic_manager_profile_name  = azurerm_traffic_manager_profile.traffic_manager.name

@@ -95,6 +95,38 @@ This project uses the **GA4 Measurement Protocol** to send `page_view` events. W
 
 The project uses **zero third-party HTTP libraries** — Node.js 20's built-in `fetch` API replaces `axios`, and a custom retry wrapper replaces the `retry` npm package. The only runtime dependency is `@azure/functions` for the Azure Functions v4 programming model.
 
+## Deployment
+
+### ARM Template ("Deploy to Azure")
+
+The ARM template (`azuredeploy.json`) provisions a single-region Function App with the following parameters:
+
+| Parameter | Type | Description |
+|---|---|---|
+| `gaMeasurementID` | string | GA4 Measurement ID (format: `G-XXXXXXXXXX`) |
+| `gaApiSecret` | securestring | GA4 Measurement Protocol API secret |
+| `anonymizeIP` | string | `1` to exclude IP from GA4 payload (default: `1`) |
+| `appName` | string | Globally unique name for the Function App |
+| `hostingPlanName` | string | Name for the App Service Plan |
+| `storageAccountType` | string | Storage SKU (default: `Standard_LRS`) |
+
+### Terraform (Multi-Region)
+
+The Terraform templates (`terraform/`) deploy across 4 Azure regions with Traffic Manager. Requires AzureRM provider >= 4.0.
+
+| Variable | Type | Description |
+|---|---|---|
+| `ga_measurement_id` | string | GA4 Measurement ID (format: `G-XXXXXXXXXX`) |
+| `ga_api_secret` | string (sensitive) | GA4 Measurement Protocol API secret |
+| `anonymize_ip` | string | `1` to exclude IP from GA4 payload (default: `1`) |
+| `prefix` | string | Resource name prefix |
+| `resource_group_name` | string | Azure Resource Group name |
+| `resource_group_location` | string | Azure region for the Resource Group |
+| `custom_hostname` | string | Custom domain for all Function Apps |
+| `cert_password` | string (sensitive) | SSL/TLS certificate password |
+
+> **Note:** When migrating an existing Terraform deployment from AzureRM 2.x/3.x to 4.x, you must use `terraform state rm` and `terraform import` to migrate from the removed `azurerm_function_app` to `azurerm_windows_function_app`, and from `azurerm_app_service_plan` to `azurerm_service_plan`. See the [AzureRM 4.0 upgrade guide](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/4.0-upgrade-guide) for details.
+
 ## Cost
 
 The deployment uses Azure Functions' [Consumption Plan](https://docs.microsoft.com/en-us/azure/azure-functions/functions-scale#consumption-plan) so you'll see that it's really cheap to host it for your projects.

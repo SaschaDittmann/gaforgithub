@@ -1,6 +1,6 @@
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
-[![](https://gaforgithub.azurewebsites.net/api?repo=gaforgithub)](https://github.com/dgkanatsios/gaforgithub)
+[![](https://ga4gh.datainsights.cloud/api?repo=gaforgithub)](https://github.com/SaschaDittmann/gaforgithub)
 
 # Unofficial Google Analytics tracking for GitHub projects
 This is an unofficial Google Analytics for GitHub repositories tracking using [Azure Functions](https://functions.azure.com) and written in Node.js. You can use this to track pageviews in all pages that contain Markdown, like READMEs, wikis etc.
@@ -17,7 +17,8 @@ GitHub uses camo to cache and serve images ([details](https://help.github.com/ar
 2. When you are done, copy your Tracking ID (should be in the format UA-XXXX-Y)
 3. Click the button below to deploy the project in your Azure subscription
 
-<a href="https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fdgkanatsios%2Fgaforgithub%2Fmaster%2Fazuredeploy.json" target="_blank"><img src="http://azuredeploy.net/deploybutton.png"/></a>
+[![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FSaschaDittmann%2Fgaforgithub%2Fmaster%2Fazuredeploy.json)
+[![Visualize](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/visualizebutton.svg?sanitize=true)](http://armviz.io/#/?load=https%3A%2F%2Fraw.githubusercontent.com%2FSaschaDittmann%2Fgaforgithub%2Fmaster%2Fazuredeploy.json)
 
 4. When the deployment is completed, copy your Functions URL (should be something like `https://yourfunctionname.azurewebsites.net`)
 5. Edit your README files in your repos that you want to track (or any files that contain markdown) and insert the necessary code.
@@ -40,4 +41,4 @@ The deployment uses Azure Functions' [Consumption Plan](https://docs.microsoft.c
 
 ## Inspiration
 
-Inspired by igrorik's solution [here](https://github.com/igrigorik/ga-beacon) that works with Go language and Google App Engine.
+This code is based on Dimitris-Ilias Gkanatsios solution [here](https://github.com/dgkanatsios/gaforgithub), which was inspired by igrorik's solution [here](https://github.com/igrigorik/ga-beacon) that works with Go language and Google App Engine.

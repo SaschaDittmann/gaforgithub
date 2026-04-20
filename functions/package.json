@@ -1,0 +1,16 @@
+{
+  "name": "googleanalyticsforgithub",
+  "description": "Unofficial Google Analytics tracking for GitHub",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"No tests yet...\""
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "dotenv": "^8.2.0",
+    "retry": "^0.12.0"
+  }
+}

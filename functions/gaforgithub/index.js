@@ -1,25 +1,28 @@
 require('dotenv').config();
-const request = require('requestretry');
+const retry = require('retry');
+const axios = require('axios');
 const fs = require('fs');
 
 module.exports = function (context, req) {
-  context.log('JavaScript HTTP trigger function processed a request.');
+  context.log('Function received a request.');
 
   if (req.query.repo) {
-
+    // create/get client id
+    let cid = "00000000-0000-0000-0000-000000000000";
     const cookies = parseCookies(req.headers.cookie);
-
-    //see if there is a cookie with name GAGH
     if ('GAGH' in cookies) {
-      sendResponse(context, req, cookies);
+      context.log.verbose('Existing GAGH cookie found.');
+      cid = cookies.GAGH;
     } else {
-      const cid = uuidv4(); //generate an anonymous client ID
+      context.log.verbose('Creating new cid.');
+      cid = uuidv4(); //generate an anonymous client ID
       cookies.GAGH = cid;
-      trackVisit(context, req, cid, cookies);
     }
+    context.log.verbose('cid: ' + cid);
 
-
+    trackVisit(context, req, cid, cookies);
   } else {
+    context.log.warn('Query string "repo" missing.');
     context.res = {
       status: 400,
       body: "Please pass a repo on the query string"
@@ -29,37 +32,59 @@ module.exports = function (context, req) {
 };
 
 function trackVisit(context, req, cid, cookies) {
+  context.log.verbose('Tracking visit.');
   const repo = req.query.repo;
   let ip = "";
   if (req.headers["x-forwarded-for"]) {
     ip = req.headers["x-forwarded-for"].split(":")[0];
   }
+  let referer = "";
+  if (typeof req.headers['referer'] !== 'undefined') {
+    referer = req.headers['referer'];
+  }
 
-  request({
-    url: 'https://www.google-analytics.com/collect',
-    json: false,
-    method: 'POST',
-    form: {
-      v: '1',
-      tid: process.env.PROPERTY_ID,
-      cid: cid,
-      t: 'pageview',
-      dp: repo,
-      //GitHub currently uses Camo, so all the below details are hidden unfortunately
-      //listed here in case you want to use this in an environment other than GitHub
-      //https://help.github.com/articles/about-anonymized-image-urls/
-      dr: encodeURIComponent(req.headers['referer']), //referer
-      uip: ip, //user's IP
-      ua: req.headers['user-agent'] //user agent
-    },
-    // The below parameters are specific to request-retry
-    maxAttempts: 5, // (default) try 5 times
-    retryDelay: 5000, // (default) wait for 5s before trying again
-    retryStrategy: request.RetryStrategies.HTTPOrNetworkError // (default) retry on 5xx or network errors
-  }, function (err, response, body) {
-    // this callback will only be called when the request succeeded or after maxAttempts or on error
-    if (response) {
-      sendResponse(context, req, cookies);
+  const params = new URLSearchParams({
+    v: 1,
+    tid: process.env.PROPERTY_ID,
+    cid: cid,
+    t: 'pageview',
+    dp: '/' + repo,
+    dr: referer ? referer : null,
+    aip: process.env.ANONYMIZE_IP ? process.env.ANONYMIZE_IP : null,
+    uip: ip,
+    ua: req.headers['user-agent'],
+  });
+  //GitHub currently uses Camo, so all the below details are hidden unfortunately
+  //listed here in case you want to use this in an environment other than GitHub
+  //https://help.github.com/articles/about-anonymized-image-urls/
+  context.log('formdata: repo=' + repo + ', referer=' + referer + ', uip=' + ip + ', cid=' + cid);
+
+  const operation = retry.operation({
+    retries: 5,
+    minTimeout: 1 * 1000,
+    maxTimeout: 60 * 1000,
+    randomize: true,
+  });
+
+  operation.attempt(function(currentAttempt) {
+    context.log('sending request: ' + currentAttempt + ' attempt');
+    try {
+      axios.post(
+        'https://www.google-analytics.com/collect',
+        {},
+        { params: params }
+      ).then(function (response) {
+        context.log.verbose('response code: ' + response.status);
+        sendResponse(context, req, cookies);
+      })
+      .catch(function (error) {
+        context.log.error('failed sending request (' + currentAttempt + ' attempt)');
+        context.log(error);
+        if (operation.retry(error)) { return; }
+      });
+    } catch (e) {
+      context.log.error('failed request (' + currentAttempt + ' attempt)');
+      if (operation.retry(e)) { return; }
     }
   });
 }

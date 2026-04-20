@@ -48,7 +48,7 @@ If you do not want to display the button, use this code:
 
 ## Prerequisites
 
-- **Node.js** 20 or later
+- **Node.js** 22 or later
 - **Azure Functions Core Tools** v4 (`npm i -g azure-functions-core-tools@4 --unsafe-perm true`)
 
 ## Local Development
@@ -122,7 +122,7 @@ This project uses the **GA4 Measurement Protocol** to send `page_view` events. W
 
 ### Dependencies
 
-The project uses **zero third-party HTTP libraries** — Node.js 20's built-in `fetch` API replaces `axios`, and a custom retry wrapper replaces the `retry` npm package. The only runtime dependency is `@azure/functions` for the Azure Functions v4 programming model.
+The project uses **zero third-party HTTP libraries** — Node.js 22's built-in `fetch` API replaces `axios`, and a custom retry wrapper replaces the `retry` npm package. The only runtime dependency is `@azure/functions` for the Azure Functions v4 programming model.
 
 ## Deployment
 

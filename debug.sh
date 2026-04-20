@@ -1,14 +1,14 @@
 #!/bin/bash
 set -e
 
-# Ensure Node.js 20 is available
+# Ensure Node.js 22 is available
 node_version=$(node -v)
-if [[ $node_version != *"v20"* ]]; then
-  echo "Warning: Node.js 20 is required. Current version: $node_version"
-  if [ -d "/usr/local/opt/node@20/bin" ]; then
-    export PATH="/usr/local/opt/node@20/bin:$PATH"
+if [[ $node_version != *"v22"* ]]; then
+  echo "Warning: Node.js 22 is required. Current version: $node_version"
+  if [ -d "/usr/local/opt/node@22/bin" ]; then
+    export PATH="/usr/local/opt/node@22/bin:$PATH"
   else
-    echo "Error: Node.js 20 not found. Please install it first."
+    echo "Error: Node.js 22 not found. Please install it first."
     exit 1
   fi
 fi

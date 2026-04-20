@@ -46,7 +46,7 @@ resource "azurerm_windows_function_app" "func_app" {
 
   site_config {
     application_stack {
-      node_version = "~20"
+      node_version = "~22"
     }
   }
 
@@ -58,7 +58,7 @@ resource "azurerm_windows_function_app" "func_app" {
     NODE_ENV                              = "production"
     GA_MEASUREMENT_ID                     = var.ga_measurement_id
     GA_API_SECRET                         = var.ga_api_secret
-    WEBSITE_NODE_DEFAULT_VERSION          = "~20"
+    WEBSITE_NODE_DEFAULT_VERSION          = "~22"
   }
 }
 

@@ -13,8 +13,8 @@ GitHub uses camo to cache and serve images ([details](https://help.github.com/ar
 
 ## Instructions
 
-1. Click [here](http://www.google.com/analytics/) to visit Google Analytics and create a new account
-2. When you are done, copy your Tracking ID (should be in the format UA-XXXX-Y)
+1. Click [here](http://www.google.com/analytics/) to visit Google Analytics and create a new **GA4 property**
+2. Once your GA4 property is created, note the **Measurement ID** (format: `G-XXXXXXXXXX`). Then go to **Admin → Data Streams → [Your Stream] → Measurement Protocol API secrets** and create a new API secret
 3. Click the button below to deploy the project in your Azure subscription
 
 [![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FSaschaDittmann%2Fgaforgithub%2Fmaster%2Fazuredeploy.json)
@@ -34,6 +34,16 @@ If you do not want to display the button, use this code:
 ```markdown
 ![](https://YYYYYY.azurewebsites.net/api?repo=XXXXXXXX&empty)
 ```
+
+## Configuration
+
+| Environment Variable | Required | Description |
+|---|---|---|
+| `GA_MEASUREMENT_ID` | Yes | GA4 Measurement ID (format: `G-XXXXXXXXXX`) |
+| `GA_API_SECRET` | Yes | GA4 Measurement Protocol API secret (generated in GA4 Admin → Data Streams → Measurement Protocol API secrets) |
+| `ANONYMIZE_IP` | No | Set to `1` to exclude client IP from the GA4 payload entirely. GA4 handles IP anonymization by default, but this prevents any IP-based processing. |
+| `APPINSIGHTS_INSTRUMENTATIONKEY` | No | Azure Application Insights key for function-level monitoring |
+| `AzureWebJobsStorage` | Yes (Azure) | Azure Storage connection string for the Functions runtime |
 
 ## Prerequisites
 
@@ -55,6 +65,35 @@ npm start
 # or use the debug script from the repo root:
 ./debug.sh
 ```
+
+### Local Settings
+
+Copy `functions/local.settings.json` and fill in your GA4 credentials:
+
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "",
+    "GA_MEASUREMENT_ID": "G-XXXXXXXXXX",
+    "GA_API_SECRET": "your-api-secret-here",
+    "ANONYMIZE_IP": "1"
+  }
+}
+```
+
+## Architecture
+
+This project uses the **GA4 Measurement Protocol** to send `page_view` events. When a browser or GitHub's Camo image proxy fetches the tracking beacon image:
+
+1. The Azure Function parses the `repo` query parameter and cookie-based client ID
+2. A `page_view` event is sent to the GA4 Measurement Protocol (`/mp/collect`) using Node.js native `fetch` with exponential backoff retry
+3. An SVG image (badge or invisible pixel) is returned to the caller
+
+### Dependencies
+
+The project uses **zero third-party HTTP libraries** — Node.js 20's built-in `fetch` API replaces `axios`, and a custom retry wrapper replaces the `retry` npm package. The only runtime dependency is `@azure/functions` for the Azure Functions v4 programming model.
 
 ## Cost
 

@@ -1,13 +1,15 @@
 const { app } = require("@azure/functions");
-const retry = require('retry');
-const axios = require('axios');
+const { fetchWithRetry } = require('./retry.js');
 const fs = require('fs');
 const path = require('path');
+
+/** GA4 Measurement Protocol endpoint */
+const GA4_ENDPOINT = 'https://www.google-analytics.com/mp/collect';
 
 /**
  * Azure Function HTTP handler for Google Analytics tracking beacon.
  * Receives requests from embedded Markdown image tags and forwards
- * pageview events to the Google Analytics Measurement Protocol.
+ * pageview events to the GA4 Measurement Protocol.
  */
 async function gaforgithub(request, context) {
   context.log('Function received a request.');
@@ -41,10 +43,51 @@ async function gaforgithub(request, context) {
 }
 
 /**
- * Sends a pageview hit to the Google Analytics Measurement Protocol (UA).
- * Uses exponential backoff retry logic for resilience.
+ * Builds the GA4 Measurement Protocol event payload.
+ * @param {string} repo - Repository name from the query string.
+ * @param {string} cid - Client ID (UUID v4 from cookie or newly generated).
+ * @param {string} userAgent - User-Agent header value.
+ * @param {string} ip - Client IP from X-Forwarded-For header.
+ * @param {string} referer - Referer header value.
+ * @returns {object} GA4 event payload ready for JSON serialization.
  */
-function trackVisit(context, request, repo, cid, cookies) {
+function buildGA4Payload(repo, cid, userAgent, ip, referer) {
+  const eventParams = {
+    page_location: '/' + repo,
+    engagement_time_msec: '1',
+  };
+
+  if (userAgent) {
+    eventParams.user_agent = userAgent;
+  }
+
+  if (referer) {
+    eventParams.page_referrer = referer;
+  }
+
+  // GA4 handles IP anonymization by default. When ANONYMIZE_IP is set to "1",
+  // omit IP entirely to prevent any IP-based processing.
+  const anonymizeIp = process.env.ANONYMIZE_IP === '1';
+  if (ip && !anonymizeIp) {
+    eventParams.ip_override = ip;
+  }
+
+  return {
+    client_id: cid,
+    events: [
+      {
+        name: 'page_view',
+        params: eventParams,
+      }
+    ]
+  };
+}
+
+/**
+ * Sends a pageview event to the GA4 Measurement Protocol.
+ * Uses native fetch with exponential backoff retry logic for resilience.
+ */
+async function trackVisit(context, request, repo, cid, cookies) {
   context.log('Tracking visit.');
   let ip = "";
   const forwardedFor = request.headers.get("x-forwarded-for");
@@ -57,54 +100,42 @@ function trackVisit(context, request, repo, cid, cookies) {
     referer = refererHeader;
   }
 
-  const params = new URLSearchParams({
-    v: 1,
-    tid: process.env.PROPERTY_ID,
-    cid: cid,
-    t: 'pageview',
-    dp: '/' + repo,
-    dr: referer ? referer : null,
-    aip: process.env.ANONYMIZE_IP ? process.env.ANONYMIZE_IP : null,
-    uip: ip,
-    ua: request.headers.get('user-agent'),
-  });
+  const measurementId = process.env.GA_MEASUREMENT_ID;
+  const apiSecret = process.env.GA_API_SECRET;
+  const userAgent = request.headers.get('user-agent') || '';
+
+  const payload = buildGA4Payload(repo, cid, userAgent, ip, referer);
+
   //GitHub currently uses Camo, so all the below details are hidden unfortunately
   //listed here in case you want to use this in an environment other than GitHub
   //https://help.github.com/articles/about-anonymized-image-urls/
-  context.log('formdata: repo=' + repo + ', referer=' + referer + ', uip=' + ip + ', cid=' + cid);
+  context.log('GA4 event: name=page_view, repo=' + repo + ', referer=' + referer + ', ip=' + ip + ', cid=' + cid);
 
-  return new Promise((resolve, reject) => {
-    const operation = retry.operation({
-      retries: 5,
-      minTimeout: 1 * 1000,
-      maxTimeout: 60 * 1000,
-      randomize: true,
-    });
+  const url = `${GA4_ENDPOINT}?measurement_id=${encodeURIComponent(measurementId)}&api_secret=${encodeURIComponent(apiSecret)}`;
 
-    operation.attempt(function(currentAttempt) {
-      context.log('sending request: ' + currentAttempt + ' attempt');
-      try {
-        axios.post(
-          'https://www.google-analytics.com/collect',
-          {},
-          { params: params }
-        ).then(function (response) {
-          context.log('response code: ' + response.status);
-          resolve();
-        })
-        .catch(function (error) {
-          context.error('failed sending request (' + currentAttempt + ' attempt)');
-          context.log(error.message || error);
-          if (operation.retry(error)) { return; }
-          resolve(); // resolve even on failure — we still serve the SVG
-        });
-      } catch (e) {
-        context.error('failed request (' + currentAttempt + ' attempt)');
-        if (operation.retry(e)) { return; }
-        resolve(); // resolve even on failure — we still serve the SVG
+  try {
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      },
+      {
+        maxAttempts: 5,
+        minTimeout: 1000,
+        maxTimeout: 60000,
+        onRetry: (error, attempt) => {
+          context.error('GA4 request failed (attempt ' + attempt + '): ' + (error.message || error));
+        },
       }
-    });
-  });
+    );
+
+    context.log('GA4 response status: ' + response.status);
+  } catch (error) {
+    context.error('GA4 request failed after all retries: ' + (error.message || error));
+    // Resolve gracefully — always serve the SVG even if GA tracking fails
+  }
 }
 
 /**
@@ -179,8 +210,8 @@ app.http('gaforgithub', {
 });
 
 // Export utilities for testing
-module.exports = { parseCookies, stringifyCookies, uuidv4 };
+module.exports = { parseCookies, stringifyCookies, uuidv4, buildGA4Payload, trackVisit, GA4_ENDPOINT };
 
-//GA documentation links and more
-//https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide
-//https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters
+//GA4 Measurement Protocol documentation:
+//https://developers.google.com/analytics/devguides/collection/protocol/ga4
+//https://developers.google.com/analytics/devguides/collection/protocol/ga4/reference

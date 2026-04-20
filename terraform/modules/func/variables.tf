@@ -28,9 +28,21 @@ variable "func_name" {
   description = "Name of the Azure Functions App"
 }
 
-variable "property_id" {
+variable "ga_measurement_id" {
   type        = string
-  description = "Google Analytics Property ID"
+  description = "GA4 Measurement ID (format: G-XXXXXXXXXX)"
+}
+
+variable "ga_api_secret" {
+  type        = string
+  sensitive   = true
+  description = "GA4 Measurement Protocol API secret"
+}
+
+variable "anonymize_ip" {
+  type        = string
+  default     = "1"
+  description = "Set to '1' to exclude client IP from the GA4 payload"
 }
 
 variable "custom_hostname" {
@@ -40,6 +52,7 @@ variable "custom_hostname" {
 
 variable "cert_password" {
   type        = string
+  sensitive   = true
   description = "Password for the SSL/TLS Certificate"
 }
 

@@ -1,11 +1,28 @@
 {
-    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
     "contentVersion": "1.0.0.0",
     "parameters": {
-        "gaTrackingID": {
+        "gaMeasurementID": {
             "type": "string",
             "metadata": {
-                "description": "Your Google Analytics Tracking ID. Should be in the format 'UA-XXXX-Y'."
+                "description": "Your GA4 Measurement ID. Should be in the format 'G-XXXXXXXXXX'."
+            }
+        },
+        "gaApiSecret": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Your GA4 Measurement Protocol API secret. Generated in GA4 Admin > Data Streams > Measurement Protocol API secrets."
+            }
+        },
+        "anonymizeIP": {
+            "type": "string",
+            "defaultValue": "1",
+            "allowedValues": [
+                "0",
+                "1"
+            ],
+            "metadata": {
+                "description": "Set to '1' to exclude client IP from the GA4 payload entirely. GA4 handles IP anonymization by default."
             }
         },
         "appName": {
@@ -44,17 +61,19 @@
     },
     "resources": [{
             "type": "microsoft.insights/components",
-            "apiVersion": "2015-05-01",
+            "apiVersion": "2020-02-02",
             "name": "[variables('appInsightsName')]",
             "location": "[resourceGroup().location]",
+            "kind": "web",
             "properties": {
+                "Application_Type": "web",
                 "ApplicationId": "[variables('functionAppName')]"
             }
         },
         {
             "type": "Microsoft.Storage/storageAccounts",
             "name": "[variables('storageAccountName')]",
-            "apiVersion": "2016-12-01",
+            "apiVersion": "2023-01-01",
             "location": "[resourceGroup().location]",
             "kind": "Storage",
             "sku": {
@@ -63,17 +82,17 @@
         },
         {
             "type": "Microsoft.Web/serverfarms",
-            "apiVersion": "2015-04-01",
+            "apiVersion": "2023-01-01",
             "name": "[variables('hostingPlanName')]",
             "location": "[resourceGroup().location]",
-            "properties": {
-                "name": "[variables('hostingPlanName')]",
-                "computeMode": "Dynamic",
-                "sku": "Dynamic"
-            }
+            "sku": {
+                "name": "Y1",
+                "tier": "Dynamic"
+            },
+            "properties": {}
         },
         {
-            "apiVersion": "2015-08-01",
+            "apiVersion": "2023-01-01",
             "type": "Microsoft.Web/sites",
             "name": "[variables('functionAppName')]",
             "location": "[resourceGroup().location]",
@@ -89,11 +108,11 @@
                     "appSettings": [
                         {
                             "name": "AzureWebJobsStorage",
-                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2023-01-01').keys[0].value)]"
                         },
                         {
                             "name": "WEBSITE_CONTENTAZUREFILECONNECTIONSTRING",
-                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2015-05-01-preview').key1)]"
+                            "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName'), ';AccountKey=', listKeys(variables('storageAccountid'),'2023-01-01').keys[0].value)]"
                         },
                         {
                             "name": "WEBSITE_CONTENTSHARE",
@@ -101,23 +120,39 @@
                         },
                         {
                             "name": "FUNCTIONS_EXTENSION_VERSION",
-                            "value": "~3"
+                            "value": "~4"
+                        },
+                        {
+                            "name": "FUNCTIONS_WORKER_RUNTIME",
+                            "value": "node"
                         },
                         {
                             "name": "WEBSITE_NODE_DEFAULT_VERSION",
-                            "value": "~14"
+                            "value": "~20"
                         },
                         {
                             "name": "NODE_ENV",
                             "value": "production"
                         },
                         {
-                            "name": "PROPERTY_ID",
-                            "value": "[parameters('gaTrackingID')]"
+                            "name": "GA_MEASUREMENT_ID",
+                            "value": "[parameters('gaMeasurementID')]"
+                        },
+                        {
+                            "name": "GA_API_SECRET",
+                            "value": "[parameters('gaApiSecret')]"
+                        },
+                        {
+                            "name": "ANONYMIZE_IP",
+                            "value": "[parameters('anonymizeIP')]"
                         },
                         {
                             "name":"APPINSIGHTS_INSTRUMENTATIONKEY",
-                            "value":"[reference(resourceId('microsoft.insights/components/', variables('appInsightsName')), '2015-05-01').InstrumentationKey]"
+                            "value":"[reference(resourceId('microsoft.insights/components/', variables('appInsightsName')), '2020-02-02').InstrumentationKey]"
+                        },
+                        {
+                            "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+                            "value": "[reference(resourceId('microsoft.insights/components/', variables('appInsightsName')), '2020-02-02').ConnectionString]"
                         },
                         {
                             "name": "Project",
@@ -127,7 +162,7 @@
                 }
             },
             "resources": [{
-                "apiVersion": "2015-08-01",
+                "apiVersion": "2023-01-01",
                 "name": "web",
                 "type": "sourcecontrols",
                 "dependsOn": [

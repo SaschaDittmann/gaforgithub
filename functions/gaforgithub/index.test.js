@@ -1,6 +1,6 @@
-const { describe, it } = require('node:test');
+const { describe, it, beforeEach, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
-const { parseCookies, stringifyCookies, uuidv4 } = require('./index.js');
+const { parseCookies, stringifyCookies, uuidv4, buildGA4Payload, sendResponse, gaforgithub, GA4_ENDPOINT } = require('./index.js');
 
 describe('parseCookies', () => {
   it('returns empty object for empty string', () => {
@@ -88,5 +88,326 @@ describe('SVG response files', () => {
     assert.ok(fs.existsSync(svgPath), `Expected empty.svg to exist at ${svgPath}`);
     const content = fs.readFileSync(svgPath, 'utf-8');
     assert.ok(content.includes('<svg'), `Expected empty.svg to contain <svg tag but got: ${content.substring(0, 50)}`);
+  });
+});
+
+describe('GA4_ENDPOINT', () => {
+  it('points to the GA4 Measurement Protocol collect endpoint', () => {
+    assert.strictEqual(GA4_ENDPOINT, 'https://www.google-analytics.com/mp/collect',
+      `Expected GA4 MP endpoint but got '${GA4_ENDPOINT}'`);
+  });
+});
+
+describe('buildGA4Payload', () => {
+  let originalEnv;
+
+  beforeEach(() => {
+    originalEnv = { ...process.env };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('constructs correct JSON structure with client_id and events array', () => {
+    process.env.ANONYMIZE_IP = '';
+    const payload = buildGA4Payload('my-repo', 'test-cid-123', 'TestAgent/1.0', '1.2.3.4', '');
+
+    assert.strictEqual(payload.client_id, 'test-cid-123',
+      `Expected client_id='test-cid-123' but got '${payload.client_id}'`);
+    assert.ok(Array.isArray(payload.events),
+      `Expected events to be an array but got ${typeof payload.events}`);
+    assert.strictEqual(payload.events.length, 1,
+      `Expected 1 event but got ${payload.events.length}`);
+  });
+
+  it('sets event name to page_view', () => {
+    process.env.ANONYMIZE_IP = '';
+    const payload = buildGA4Payload('my-repo', 'cid', 'Agent', '', '');
+
+    assert.strictEqual(payload.events[0].name, 'page_view',
+      `Expected event name 'page_view' but got '${payload.events[0].name}'`);
+  });
+
+  it('includes page_location with leading slash and repo name', () => {
+    process.env.ANONYMIZE_IP = '';
+    const payload = buildGA4Payload('awesome-project', 'cid', 'Agent', '', '');
+
+    assert.strictEqual(payload.events[0].params.page_location, '/awesome-project',
+      `Expected page_location='/awesome-project' but got '${payload.events[0].params.page_location}'`);
+  });
+
+  it('includes user_agent when provided', () => {
+    process.env.ANONYMIZE_IP = '';
+    const payload = buildGA4Payload('repo', 'cid', 'Mozilla/5.0', '', '');
+
+    assert.strictEqual(payload.events[0].params.user_agent, 'Mozilla/5.0',
+      `Expected user_agent='Mozilla/5.0' but got '${payload.events[0].params.user_agent}'`);
+  });
+
+  it('omits user_agent when empty', () => {
+    process.env.ANONYMIZE_IP = '';
+    const payload = buildGA4Payload('repo', 'cid', '', '', '');
+
+    assert.strictEqual(payload.events[0].params.user_agent, undefined,
+      `Expected user_agent to be undefined but got '${payload.events[0].params.user_agent}'`);
+  });
+
+  it('includes page_referrer when provided', () => {
+    process.env.ANONYMIZE_IP = '';
+    const payload = buildGA4Payload('repo', 'cid', 'Agent', '', 'https://github.com');
+
+    assert.strictEqual(payload.events[0].params.page_referrer, 'https://github.com',
+      `Expected page_referrer='https://github.com' but got '${payload.events[0].params.page_referrer}'`);
+  });
+
+  it('omits page_referrer when empty', () => {
+    process.env.ANONYMIZE_IP = '';
+    const payload = buildGA4Payload('repo', 'cid', 'Agent', '', '');
+
+    assert.strictEqual(payload.events[0].params.page_referrer, undefined,
+      `Expected page_referrer to be undefined but got '${payload.events[0].params.page_referrer}'`);
+  });
+
+  it('includes engagement_time_msec for proper session attribution', () => {
+    process.env.ANONYMIZE_IP = '';
+    const payload = buildGA4Payload('repo', 'cid', 'Agent', '', '');
+
+    assert.strictEqual(payload.events[0].params.engagement_time_msec, '1',
+      `Expected engagement_time_msec='1' but got '${payload.events[0].params.engagement_time_msec}'`);
+  });
+
+  it('includes ip_override when IP is provided and ANONYMIZE_IP is not set', () => {
+    delete process.env.ANONYMIZE_IP;
+    const payload = buildGA4Payload('repo', 'cid', 'Agent', '10.0.0.1', '');
+
+    assert.strictEqual(payload.events[0].params.ip_override, '10.0.0.1',
+      `Expected ip_override='10.0.0.1' but got '${payload.events[0].params.ip_override}'`);
+  });
+
+  it('includes ip_override when ANONYMIZE_IP is set to "0"', () => {
+    process.env.ANONYMIZE_IP = '0';
+    const payload = buildGA4Payload('repo', 'cid', 'Agent', '10.0.0.1', '');
+
+    assert.strictEqual(payload.events[0].params.ip_override, '10.0.0.1',
+      `Expected ip_override when ANONYMIZE_IP='0' but got '${payload.events[0].params.ip_override}'`);
+  });
+});
+
+describe('GA4 IP anonymization', () => {
+  let originalEnv;
+
+  beforeEach(() => {
+    originalEnv = { ...process.env };
+  });
+
+  afterEach(() => {
+    process.env = originalEnv;
+  });
+
+  it('excludes IP from payload when ANONYMIZE_IP=1', () => {
+    process.env.ANONYMIZE_IP = '1';
+    const payload = buildGA4Payload('repo', 'cid', 'Agent', '192.168.1.1', '');
+
+    assert.strictEqual(payload.events[0].params.ip_override, undefined,
+      `Expected ip_override to be excluded when ANONYMIZE_IP=1 but got '${payload.events[0].params.ip_override}'`);
+  });
+
+  it('includes IP in payload when ANONYMIZE_IP is not set', () => {
+    delete process.env.ANONYMIZE_IP;
+    const payload = buildGA4Payload('repo', 'cid', 'Agent', '192.168.1.1', '');
+
+    assert.strictEqual(payload.events[0].params.ip_override, '192.168.1.1',
+      `Expected ip_override='192.168.1.1' when ANONYMIZE_IP is unset but got '${payload.events[0].params.ip_override}'`);
+  });
+
+  it('omits ip_override when IP is empty regardless of ANONYMIZE_IP', () => {
+    delete process.env.ANONYMIZE_IP;
+    const payload = buildGA4Payload('repo', 'cid', 'Agent', '', '');
+
+    assert.strictEqual(payload.events[0].params.ip_override, undefined,
+      `Expected ip_override to be undefined for empty IP but got '${payload.events[0].params.ip_override}'`);
+  });
+});
+
+describe('GA4 payload client_id format', () => {
+  it('preserves UUID v4 client_id in the payload', () => {
+    const cid = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+    const payload = buildGA4Payload('repo', cid, 'Agent', '', '');
+
+    assert.strictEqual(payload.client_id, cid,
+      `Expected client_id to be preserved as '${cid}' but got '${payload.client_id}'`);
+  });
+
+  it('uses client_id as top-level field, not inside events', () => {
+    const payload = buildGA4Payload('repo', 'test-cid', 'Agent', '', '');
+
+    assert.strictEqual(typeof payload.client_id, 'string',
+      `Expected client_id at top level but got type ${typeof payload.client_id}`);
+    assert.strictEqual(payload.events[0].params.client_id, undefined,
+      `client_id should not be inside event params`);
+  });
+});
+
+describe('SVG response logic', () => {
+  function makeRequest(queryParams = {}) {
+    const query = new URLSearchParams(queryParams);
+    return {
+      query,
+      headers: new Map([['cookie', '']]),
+    };
+  }
+
+  it('returns gag-green.svg by default', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, { GAGH: 'test-cid' });
+
+    assert.ok(response.body.includes('GA'),
+      `Expected badge SVG containing 'GA' but got: ${response.body.substring(0, 80)}`);
+  });
+
+  it('returns empty.svg when empty query param is present', () => {
+    const query = new URLSearchParams({ repo: 'test', empty: '' });
+    const request = { query, headers: new Map([['cookie', '']]) };
+    const response = sendResponse(request, { GAGH: 'test-cid' });
+
+    assert.ok(response.body.includes('<svg'),
+      `Expected SVG content but got: ${response.body.substring(0, 80)}`);
+    // empty.svg should be a 1x1 transparent pixel, much smaller than the badge
+    assert.ok(response.body.length < 300,
+      `Expected small empty SVG but got ${response.body.length} bytes`);
+  });
+
+  it('sets Content-Type to image/svg+xml', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, {});
+
+    assert.strictEqual(response.headers['Content-Type'], 'image/svg+xml',
+      `Expected Content-Type 'image/svg+xml' but got '${response.headers['Content-Type']}'`);
+  });
+
+  it('sets Cache-Control to private, no-store', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, {});
+
+    assert.strictEqual(response.headers['Cache-Control'], 'private, no-store',
+      `Expected Cache-Control 'private, no-store' but got '${response.headers['Cache-Control']}'`);
+  });
+
+  it('includes Set-Cookie header with serialized cookies', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, { GAGH: 'my-cid-123' });
+
+    assert.ok(response.headers['Set-Cookie'].includes('GAGH=my-cid-123'),
+      `Expected Set-Cookie to contain 'GAGH=my-cid-123' but got '${response.headers['Set-Cookie']}'`);
+  });
+
+  it('returns HTTP 200 status', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, {});
+
+    assert.strictEqual(response.status, 200,
+      `Expected status 200 but got ${response.status}`);
+  });
+});
+
+describe('cookie-based client ID flow', () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    // Mock fetch to avoid real network calls
+    globalThis.fetch = mock.fn(async () => ({
+      ok: true,
+      status: 204,
+      statusText: 'No Content',
+    }));
+    // Set required env vars
+    process.env.GA_MEASUREMENT_ID = 'G-TEST123';
+    process.env.GA_API_SECRET = 'test-secret';
+    process.env.ANONYMIZE_IP = '1';
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    delete process.env.GA_MEASUREMENT_ID;
+    delete process.env.GA_API_SECRET;
+    delete process.env.ANONYMIZE_IP;
+  });
+
+  function makeContext() {
+    return {
+      log: mock.fn(),
+      warn: mock.fn(),
+      error: mock.fn(),
+    };
+  }
+
+  it('generates a new CID when no GAGH cookie exists', async () => {
+    const context = makeContext();
+    const request = {
+      query: new URLSearchParams({ repo: 'test-repo' }),
+      headers: new Map([['cookie', ''], ['user-agent', 'TestAgent']]),
+    };
+
+    const response = await gaforgithub(request, context);
+
+    assert.strictEqual(response.status, 200,
+      `Expected status 200 but got ${response.status}`);
+    // Should have Set-Cookie with a new UUID
+    const setCookie = response.headers['Set-Cookie'];
+    assert.ok(setCookie.includes('GAGH='),
+      `Expected Set-Cookie to contain GAGH but got '${setCookie}'`);
+    // The CID in the cookie should be a UUID v4
+    const cidMatch = setCookie.match(/GAGH=([^;]+)/);
+    assert.ok(cidMatch, `Expected GAGH cookie value but got '${setCookie}'`);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    assert.match(cidMatch[1], uuidRegex,
+      `Expected UUID v4 format in cookie but got '${cidMatch[1]}'`);
+    // Verify GA hit was sent
+    assert.ok(globalThis.fetch.mock.calls.length > 0,
+      'Expected at least one fetch call for GA tracking');
+  });
+
+  it('reuses existing CID when GAGH cookie exists', async () => {
+    const existingCid = 'aabbccdd-1122-4334-8556-ffeeddccbbaa';
+    const context = makeContext();
+    const request = {
+      query: new URLSearchParams({ repo: 'test-repo' }),
+      headers: new Map([['cookie', `GAGH=${existingCid}`], ['user-agent', 'TestAgent']]),
+    };
+
+    const response = await gaforgithub(request, context);
+
+    assert.strictEqual(response.status, 200,
+      `Expected status 200 but got ${response.status}`);
+    // Should preserve the existing CID in the cookie
+    const setCookie = response.headers['Set-Cookie'];
+    assert.ok(setCookie.includes(`GAGH=${existingCid}`),
+      `Expected Set-Cookie to preserve existing CID '${existingCid}' but got '${setCookie}'`);
+    // Verify GA hit was sent even for returning visitors
+    assert.ok(globalThis.fetch.mock.calls.length > 0,
+      'Expected fetch call for GA tracking even with existing cookie');
+  });
+});
+
+describe('missing repo parameter', () => {
+  it('returns HTTP 400 with descriptive error message', async () => {
+    const context = {
+      log: mock.fn(),
+      warn: mock.fn(),
+      error: mock.fn(),
+    };
+    const request = {
+      query: new URLSearchParams({}),
+      headers: new Map([['cookie', ''], ['user-agent', 'TestAgent']]),
+    };
+
+    const response = await gaforgithub(request, context);
+
+    assert.strictEqual(response.status, 400,
+      `Expected status 400 for missing repo but got ${response.status}`);
+    assert.ok(response.body.toLowerCase().includes('repo'),
+      `Expected error message to mention 'repo' but got '${response.body}'`);
   });
 });

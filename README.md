@@ -1,4 +1,5 @@
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
+[![CI](https://github.com/SaschaDittmann/gaforgithub/actions/workflows/ci.yml/badge.svg)](https://github.com/SaschaDittmann/gaforgithub/actions/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 [![](https://ga4gh.datainsights.cloud/api?repo=gaforgithub)](https://github.com/SaschaDittmann/gaforgithub)
 
@@ -13,8 +14,8 @@ GitHub uses camo to cache and serve images ([details](https://help.github.com/ar
 
 ## Instructions
 
-1. Click [here](http://www.google.com/analytics/) to visit Google Analytics and create a new account
-2. When you are done, copy your Tracking ID (should be in the format UA-XXXX-Y)
+1. Click [here](http://www.google.com/analytics/) to visit Google Analytics and create a new **GA4 property**
+2. Once your GA4 property is created, note the **Measurement ID** (format: `G-XXXXXXXXXX`). Then go to **Admin → Data Streams → [Your Stream] → Measurement Protocol API secrets** and create a new API secret
 3. Click the button below to deploy the project in your Azure subscription
 
 [![Deploy To Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/1-CONTRIBUTION-GUIDE/images/deploytoazure.svg?sanitize=true)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FSaschaDittmann%2Fgaforgithub%2Fmaster%2Fazuredeploy.json)
@@ -34,6 +35,16 @@ If you do not want to display the button, use this code:
 ```markdown
 ![](https://YYYYYY.azurewebsites.net/api?repo=XXXXXXXX&empty)
 ```
+
+## Configuration
+
+| Environment Variable | Required | Description |
+|---|---|---|
+| `GA_MEASUREMENT_ID` | Yes | GA4 Measurement ID (format: `G-XXXXXXXXXX`) |
+| `GA_API_SECRET` | Yes | GA4 Measurement Protocol API secret (generated in GA4 Admin → Data Streams → Measurement Protocol API secrets) |
+| `ANONYMIZE_IP` | No | Set to `1` to exclude client IP from the GA4 payload entirely. GA4 handles IP anonymization by default, but this prevents any IP-based processing. |
+| `APPINSIGHTS_INSTRUMENTATIONKEY` | No | Azure Application Insights key for function-level monitoring |
+| `AzureWebJobsStorage` | Yes (Azure) | Azure Storage connection string for the Functions runtime |
 
 ## Prerequisites
 
@@ -55,6 +66,95 @@ npm start
 # or use the debug script from the repo root:
 ./debug.sh
 ```
+
+### Local Settings
+
+Copy `functions/local.settings.json` and fill in your GA4 credentials:
+
+```json
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "AzureWebJobsStorage": "",
+    "GA_MEASUREMENT_ID": "G-XXXXXXXXXX",
+    "GA_API_SECRET": "your-api-secret-here",
+    "ANONYMIZE_IP": "1"
+  }
+}
+```
+
+### Testing
+
+The project uses Node.js built-in test runner (`node:test`) — no additional test framework dependencies needed.
+
+```bash
+cd functions/
+
+# Run all tests
+npm test
+
+# Run tests with watch mode (re-runs on file changes)
+node --test --watch gaforgithub/*.test.js
+```
+
+The test suite covers:
+- Cookie parsing and serialization (`parseCookies`, `stringifyCookies`)
+- UUID v4 generation (`uuidv4`)
+- GA4 payload construction (`buildGA4Payload`) — event structure, IP anonymization, client ID
+- SVG response logic — badge vs. invisible pixel, Content-Type, Cache-Control headers
+- Cookie-based client ID flow — new visitor CID generation, returning visitor CID reuse
+- Missing `repo` parameter — HTTP 400 error handling
+- Retry wrapper — exponential backoff, 5xx retry, network error retry, max attempts
+
+### CI/CD
+
+- **Pull Requests:** The `ci.yml` workflow runs `npm ci` and `npm test` on every PR to `main` or `development`.
+- **Deployment:** The `master.yml` workflow tests first, then deploys to all 4 Azure regions (Europe, US, Asia, Australia) using publish profiles stored as GitHub Secrets.
+
+## Architecture
+
+This project uses the **GA4 Measurement Protocol** to send `page_view` events. When a browser or GitHub's Camo image proxy fetches the tracking beacon image:
+
+1. The Azure Function parses the `repo` query parameter and cookie-based client ID
+2. A `page_view` event is sent to the GA4 Measurement Protocol (`/mp/collect`) using Node.js native `fetch` with exponential backoff retry
+3. An SVG image (badge or invisible pixel) is returned to the caller
+
+### Dependencies
+
+The project uses **zero third-party HTTP libraries** — Node.js 20's built-in `fetch` API replaces `axios`, and a custom retry wrapper replaces the `retry` npm package. The only runtime dependency is `@azure/functions` for the Azure Functions v4 programming model.
+
+## Deployment
+
+### ARM Template ("Deploy to Azure")
+
+The ARM template (`azuredeploy.json`) provisions a single-region Function App with the following parameters:
+
+| Parameter | Type | Description |
+|---|---|---|
+| `gaMeasurementID` | string | GA4 Measurement ID (format: `G-XXXXXXXXXX`) |
+| `gaApiSecret` | securestring | GA4 Measurement Protocol API secret |
+| `anonymizeIP` | string | `1` to exclude IP from GA4 payload (default: `1`) |
+| `appName` | string | Globally unique name for the Function App |
+| `hostingPlanName` | string | Name for the App Service Plan |
+| `storageAccountType` | string | Storage SKU (default: `Standard_LRS`) |
+
+### Terraform (Multi-Region)
+
+The Terraform templates (`terraform/`) deploy across 4 Azure regions with Traffic Manager. Requires AzureRM provider >= 4.0.
+
+| Variable | Type | Description |
+|---|---|---|
+| `ga_measurement_id` | string | GA4 Measurement ID (format: `G-XXXXXXXXXX`) |
+| `ga_api_secret` | string (sensitive) | GA4 Measurement Protocol API secret |
+| `anonymize_ip` | string | `1` to exclude IP from GA4 payload (default: `1`) |
+| `prefix` | string | Resource name prefix |
+| `resource_group_name` | string | Azure Resource Group name |
+| `resource_group_location` | string | Azure region for the Resource Group |
+| `custom_hostname` | string | Custom domain for all Function Apps |
+| `cert_password` | string (sensitive) | SSL/TLS certificate password |
+
+> **Note:** When migrating an existing Terraform deployment from AzureRM 2.x/3.x to 4.x, you must use `terraform state rm` and `terraform import` to migrate from the removed `azurerm_function_app` to `azurerm_windows_function_app`, and from `azurerm_app_service_plan` to `azurerm_service_plan`. See the [AzureRM 4.0 upgrade guide](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/guides/4.0-upgrade-guide) for details.
 
 ## Cost
 

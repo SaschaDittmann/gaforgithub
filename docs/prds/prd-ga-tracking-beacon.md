@@ -1,13 +1,15 @@
 # PRD: Google Analytics Tracking Beacon for GitHub
 
-> **Status:** Reverse-engineered from existing codebase (originally created ~2018) — **currently deployed but non-functional** (Universal Analytics sunset)
+> **Status:** Modernized — GA4 migration complete, deployed and functional across 4 Azure regions
 > **Author:** Sascha Dittmann (fork of [dgkanatsios/gaforgithub](https://github.com/dgkanatsios/gaforgithub))
 > **License:** MIT
 > **Date:** 2026-04-20
 
 ### Current Status
 
-The project is **still deployed** to Azure but is **no longer functional** because Google sunset Universal Analytics in July 2023. The GA Measurement Protocol endpoint (`/collect`) no longer processes hits. Modernization to GA4 is planned as a follow-up effort; this PRD documents the status quo of the existing codebase to serve as the baseline for that migration.
+The project is **deployed and functional** across 4 Azure regions using **GA4 Measurement Protocol**, **Azure Functions v4**, and **Node.js 20**. All legacy dependencies (`axios`, `retry`, `dotenv`) have been replaced with zero-dependency alternatives using Node.js 20 built-in APIs.
+
+> ⚠️ **Node.js 20 reaches end-of-life on April 30, 2026.** Upgrade to Node.js 24 is planned as the next effort.
 
 ---
 
@@ -67,18 +69,16 @@ Inspired by [igrigorik/ga-beacon](https://github.com/igrigorik/ga-beacon), which
 
 ### 4.2 Google Analytics Integration
 
-5. The system **must** send a `pageview` hit to the [Google Analytics Measurement Protocol](https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide) (Universal Analytics, `https://www.google-analytics.com/collect`).
-6. The pageview payload **must** be sent as URL query parameters using `URLSearchParams` and include:
-   - `v`: Protocol version (`1`)
-   - `tid`: The GA Tracking ID, read from the `PROPERTY_ID` environment variable (format `UA-XXXX-Y`)
-   - `cid`: An anonymous client ID (UUID v4) — generated for new visitors or reused from the `GAGH` cookie for returning visitors
-   - `t`: Hit type (`pageview`)
-   - `dp`: Document path — `/<repo>` (the `repo` query parameter prefixed with `/`)
-   - `dr`: Document referrer — from the `Referer` request header (only if present)
-   - `aip`: IP anonymization flag — set from the `ANONYMIZE_IP` environment variable (if configured)
-   - `uip`: User IP — extracted from the `X-Forwarded-For` header
-   - `ua`: User agent — from the `User-Agent` request header
-7. The GA request **must** use `axios` for the HTTP POST and the `retry` library for exponential backoff with up to **5 retries**, a minimum timeout of **1 second**, maximum timeout of **60 seconds**, and randomized delays.
+5. The system **must** send a `page_view` event to the [GA4 Measurement Protocol](https://developers.google.com/analytics/devguides/collection/protocol/ga4) (`https://www.google-analytics.com/mp/collect`).
+6. The endpoint URL **must** include `measurement_id` and `api_secret` as query parameters. The JSON payload **must** include:
+   - `client_id`: An anonymous client ID (UUID v4) — generated for new visitors or reused from the `GAGH` cookie
+   - `events[]`: Array containing a single `page_view` event with params:
+     - `page_location`: `/<repo>` (the `repo` query parameter prefixed with `/`)
+     - `page_referrer`: From the `Referer` request header (only if present)
+     - `user_agent`: From the `User-Agent` request header (only if present)
+     - `ip_override`: Client IP from `X-Forwarded-For` (omitted when `ANONYMIZE_IP=1`)
+     - `engagement_time_msec`: Set to `"1"` for proper GA4 session attribution
+7. The GA request **must** use Node.js native `fetch` with a custom exponential backoff retry wrapper (max **5 attempts**, min **1 second**, max **60 second** timeout, retry on network errors or 5xx status codes).
 
 ### 4.3 Cookie-Based Client ID Management
 
@@ -97,8 +97,9 @@ Inspired by [igrigorik/ga-beacon](https://github.com/igrigorik/ga-beacon), which
 
 | Environment Variable | Required | Description |
 |---|---|---|
-| `PROPERTY_ID` | Yes | Google Analytics Tracking ID (e.g., `UA-XXXX-Y`) |
-| `ANONYMIZE_IP` | No | If set to `1`, sends `aip=1` in the GA payload to anonymize visitor IPs. |
+| `GA_MEASUREMENT_ID` | Yes | GA4 Measurement ID (format: `G-XXXXXXXXXX`) |
+| `GA_API_SECRET` | Yes | GA4 Measurement Protocol API secret (generated in GA4 Admin → Data Streams) |
+| `ANONYMIZE_IP` | No | Set to `1` to exclude client IP from the GA4 payload entirely. GA4 handles IP anonymization by default. |
 | `APPINSIGHTS_INSTRUMENTATIONKEY` | No | Azure Application Insights key for function-level monitoring |
 | `AzureWebJobsStorage` | Yes (Azure) | Azure Storage connection string for the Functions runtime |
 
@@ -147,12 +148,10 @@ Inspired by [igrigorik/ga-beacon](https://github.com/igrigorik/ga-beacon), which
 
 ## 5. Non-Goals (Out of Scope)
 
-- **Google Analytics 4 (GA4) support** — The current implementation uses Universal Analytics (UA) Measurement Protocol. Migration to GA4's Measurement Protocol is a separate effort.
 - **Dashboard / UI** — This project does not include any frontend dashboard. All reporting is done within the Google Analytics web interface.
 - **User authentication or authorization** — The endpoint is intentionally anonymous and public.
-- **Rate limiting / abuse prevention** — Not currently implemented; the Consumption Plan's concurrency settings (`maxConcurrentRequests: 5`, `maxOutstandingRequests: 30`) provide basic throttling.
+- **Rate limiting / abuse prevention** — Not currently implemented; the Consumption Plan's concurrency settings provide basic throttling.
 - **Multi-function support** — The project contains a single function (`gaforgithub`); it is not designed as a multi-endpoint API.
-- **Automated tests** — No test suite exists (`"test": "echo \"No tests yet...\""`).
 
 ---
 
@@ -211,11 +210,11 @@ sequenceDiagram
 
 | Component | Version / Detail |
 |---|---|
-| Azure Functions Runtime | v3 (`~3`) |
-| Node.js | 14 (`~14`) |
-| `axios` | ^0.21.1 — HTTP client for GA Measurement Protocol calls |
-| `retry` | ^0.12.0 — Exponential backoff retry logic |
-| `dotenv` | ^8.2.0 — Loads `.env` files for local development |
+| Azure Functions Runtime | v4 (`~4`) |
+| Node.js | 20 (`~20`) — **EOL April 30, 2026; Node 24 upgrade planned** |
+| `@azure/functions` | ^4.x — Azure Functions v4 programming model |
+| Native `fetch` | Built-in Node.js 20 — replaces `axios` |
+| Custom retry wrapper | `retry.js` — replaces `retry` npm package |
 
 ### Observability
 
@@ -239,15 +238,16 @@ The function implements **structured logging** using Azure Functions context log
 
 | Area | Current State | Improvement |
 |---|---|---|
-| **GA Version** | Universal Analytics (UA) — officially sunset by Google in July 2023. **Project is non-functional.** | Migrate to GA4 Measurement Protocol (critical / blocking) |
-| **Node.js Version** | 14 — EOL since April 2023 | Upgrade to Node.js 20 LTS |
-| **Azure Functions Runtime** | v3 — nearing end of support | Upgrade to v4 |
-| **HTTP Client** | `axios ^0.21.1` (known security vulnerabilities in older versions) | Upgrade to `axios ^1.x` or replace with native `fetch` (Node 18+) |
-| **Retry Library** | `retry ^0.12.0` | Evaluate if native retry with `fetch` is simpler |
-| **Tests** | None (`"No tests yet..."`) | Add unit tests for cookie parsing, UUID generation, GA payload construction |
-| **CI/CD Workflow** | GitHub Actions exists but: uses Node 14, `actions/checkout@v2`, `actions/setup-node@v1`, Windows runner | Upgrade to Node 20, latest action versions, Ubuntu runner |
-| **ARM Template** | Uses legacy API versions (2015/2016), Functions v3 | Upgrade to Bicep or current ARM API versions, Functions v4 |
-| **Terraform** | Uses `azurerm >= 2.55` (current is 4.x) | Upgrade provider version |
+| ~~**GA Version**~~ | ~~Universal Analytics~~ | ✅ Migrated to GA4 Measurement Protocol |
+| ~~**Node.js Version**~~ | ~~14 — EOL~~ | ✅ Upgraded to Node.js 20 |
+| ~~**Azure Functions Runtime**~~ | ~~v3~~ | ✅ Upgraded to v4 |
+| ~~**HTTP Client**~~ | ~~`axios ^0.21.1`~~ | ✅ Replaced with native `fetch` |
+| ~~**Retry Library**~~ | ~~`retry ^0.12.0`~~ | ✅ Replaced with custom retry wrapper |
+| ~~**Tests**~~ | ~~None~~ | ✅ 50 tests (14 suites) using `node:test` |
+| ~~**CI/CD Workflow**~~ | ~~Node 14, outdated actions~~ | ✅ Node 20, Ubuntu, v4 actions, test+deploy pipeline |
+| ~~**ARM Template**~~ | ~~Legacy API versions~~ | ✅ Upgraded to 2023-01-01 API versions, Functions v4 |
+| ~~**Terraform**~~ | ~~`azurerm >= 2.55`~~ | ✅ Upgraded to `>= 4.0`, new resource types |
+| **Node.js 24** | Node.js 20 EOL is April 30, 2026 | Upgrade to Node.js 24 LTS (runtime, CI, Terraform, ARM) |
 
 ---
 
@@ -276,4 +276,7 @@ The function implements **structured logging** using Azure Functions context log
 
 ## 10. Open Questions
 
-All questions have been resolved. No open items remain.
+| # | Question | Notes |
+|---|---|---|
+| 1 | Should the Node.js 24 upgrade be a separate branch or direct commit to development? | Node 20 EOL is April 30, 2026 — 10 days away. Suggest a fast-track branch. |
+| 2 | Should the old `PROPERTY_ID` app setting be removed from Azure? | It's still present but unused. Cleanup is safe. |

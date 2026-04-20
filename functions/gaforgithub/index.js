@@ -210,7 +210,7 @@ app.http('gaforgithub', {
 });
 
 // Export utilities for testing
-module.exports = { parseCookies, stringifyCookies, uuidv4, buildGA4Payload, trackVisit, GA4_ENDPOINT };
+module.exports = { parseCookies, stringifyCookies, uuidv4, buildGA4Payload, trackVisit, sendResponse, gaforgithub, GA4_ENDPOINT };
 
 //GA4 Measurement Protocol documentation:
 //https://developers.google.com/analytics/devguides/collection/protocol/ga4

@@ -1,4 +1,5 @@
 [![Software License](https://img.shields.io/badge/license-MIT-brightgreen.svg?style=flat-square)](LICENSE)
+[![CI](https://github.com/SaschaDittmann/gaforgithub/actions/workflows/ci.yml/badge.svg)](https://github.com/SaschaDittmann/gaforgithub/actions/workflows/ci.yml)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](http://makeapullrequest.com)
 [![](https://ga4gh.datainsights.cloud/api?repo=gaforgithub)](https://github.com/SaschaDittmann/gaforgithub)
 
@@ -82,6 +83,34 @@ Copy `functions/local.settings.json` and fill in your GA4 credentials:
   }
 }
 ```
+
+### Testing
+
+The project uses Node.js built-in test runner (`node:test`) — no additional test framework dependencies needed.
+
+```bash
+cd functions/
+
+# Run all tests
+npm test
+
+# Run tests with watch mode (re-runs on file changes)
+node --test --watch gaforgithub/*.test.js
+```
+
+The test suite covers:
+- Cookie parsing and serialization (`parseCookies`, `stringifyCookies`)
+- UUID v4 generation (`uuidv4`)
+- GA4 payload construction (`buildGA4Payload`) — event structure, IP anonymization, client ID
+- SVG response logic — badge vs. invisible pixel, Content-Type, Cache-Control headers
+- Cookie-based client ID flow — new visitor CID generation, returning visitor CID reuse
+- Missing `repo` parameter — HTTP 400 error handling
+- Retry wrapper — exponential backoff, 5xx retry, network error retry, max attempts
+
+### CI/CD
+
+- **Pull Requests:** The `ci.yml` workflow runs `npm ci` and `npm test` on every PR to `main` or `development`.
+- **Deployment:** The `master.yml` workflow tests first, then deploys to all 4 Azure regions (Europe, US, Asia, Australia) using publish profiles stored as GitHub Secrets.
 
 ## Architecture
 

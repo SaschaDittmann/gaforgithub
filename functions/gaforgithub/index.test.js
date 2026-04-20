@@ -1,6 +1,6 @@
-const { describe, it, beforeEach, afterEach } = require('node:test');
+const { describe, it, beforeEach, afterEach, mock } = require('node:test');
 const assert = require('node:assert/strict');
-const { parseCookies, stringifyCookies, uuidv4, buildGA4Payload, GA4_ENDPOINT } = require('./index.js');
+const { parseCookies, stringifyCookies, uuidv4, buildGA4Payload, sendResponse, gaforgithub, GA4_ENDPOINT } = require('./index.js');
 
 describe('parseCookies', () => {
   it('returns empty object for empty string', () => {
@@ -246,5 +246,168 @@ describe('GA4 payload client_id format', () => {
       `Expected client_id at top level but got type ${typeof payload.client_id}`);
     assert.strictEqual(payload.events[0].params.client_id, undefined,
       `client_id should not be inside event params`);
+  });
+});
+
+describe('SVG response logic', () => {
+  function makeRequest(queryParams = {}) {
+    const query = new URLSearchParams(queryParams);
+    return {
+      query,
+      headers: new Map([['cookie', '']]),
+    };
+  }
+
+  it('returns gag-green.svg by default', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, { GAGH: 'test-cid' });
+
+    assert.ok(response.body.includes('GA'),
+      `Expected badge SVG containing 'GA' but got: ${response.body.substring(0, 80)}`);
+  });
+
+  it('returns empty.svg when empty query param is present', () => {
+    const query = new URLSearchParams({ repo: 'test', empty: '' });
+    const request = { query, headers: new Map([['cookie', '']]) };
+    const response = sendResponse(request, { GAGH: 'test-cid' });
+
+    assert.ok(response.body.includes('<svg'),
+      `Expected SVG content but got: ${response.body.substring(0, 80)}`);
+    // empty.svg should be a 1x1 transparent pixel, much smaller than the badge
+    assert.ok(response.body.length < 300,
+      `Expected small empty SVG but got ${response.body.length} bytes`);
+  });
+
+  it('sets Content-Type to image/svg+xml', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, {});
+
+    assert.strictEqual(response.headers['Content-Type'], 'image/svg+xml',
+      `Expected Content-Type 'image/svg+xml' but got '${response.headers['Content-Type']}'`);
+  });
+
+  it('sets Cache-Control to private, no-store', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, {});
+
+    assert.strictEqual(response.headers['Cache-Control'], 'private, no-store',
+      `Expected Cache-Control 'private, no-store' but got '${response.headers['Cache-Control']}'`);
+  });
+
+  it('includes Set-Cookie header with serialized cookies', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, { GAGH: 'my-cid-123' });
+
+    assert.ok(response.headers['Set-Cookie'].includes('GAGH=my-cid-123'),
+      `Expected Set-Cookie to contain 'GAGH=my-cid-123' but got '${response.headers['Set-Cookie']}'`);
+  });
+
+  it('returns HTTP 200 status', () => {
+    const request = makeRequest({ repo: 'test' });
+    const response = sendResponse(request, {});
+
+    assert.strictEqual(response.status, 200,
+      `Expected status 200 but got ${response.status}`);
+  });
+});
+
+describe('cookie-based client ID flow', () => {
+  let originalFetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    // Mock fetch to avoid real network calls
+    globalThis.fetch = mock.fn(async () => ({
+      ok: true,
+      status: 204,
+      statusText: 'No Content',
+    }));
+    // Set required env vars
+    process.env.GA_MEASUREMENT_ID = 'G-TEST123';
+    process.env.GA_API_SECRET = 'test-secret';
+    process.env.ANONYMIZE_IP = '1';
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    delete process.env.GA_MEASUREMENT_ID;
+    delete process.env.GA_API_SECRET;
+    delete process.env.ANONYMIZE_IP;
+  });
+
+  function makeContext() {
+    return {
+      log: mock.fn(),
+      warn: mock.fn(),
+      error: mock.fn(),
+    };
+  }
+
+  it('generates a new CID when no GAGH cookie exists', async () => {
+    const context = makeContext();
+    const request = {
+      query: new URLSearchParams({ repo: 'test-repo' }),
+      headers: new Map([['cookie', ''], ['user-agent', 'TestAgent']]),
+    };
+
+    const response = await gaforgithub(request, context);
+
+    assert.strictEqual(response.status, 200,
+      `Expected status 200 but got ${response.status}`);
+    // Should have Set-Cookie with a new UUID
+    const setCookie = response.headers['Set-Cookie'];
+    assert.ok(setCookie.includes('GAGH='),
+      `Expected Set-Cookie to contain GAGH but got '${setCookie}'`);
+    // The CID in the cookie should be a UUID v4
+    const cidMatch = setCookie.match(/GAGH=([^;]+)/);
+    assert.ok(cidMatch, `Expected GAGH cookie value but got '${setCookie}'`);
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    assert.match(cidMatch[1], uuidRegex,
+      `Expected UUID v4 format in cookie but got '${cidMatch[1]}'`);
+    // Verify GA hit was sent
+    assert.ok(globalThis.fetch.mock.calls.length > 0,
+      'Expected at least one fetch call for GA tracking');
+  });
+
+  it('reuses existing CID when GAGH cookie exists', async () => {
+    const existingCid = 'aabbccdd-1122-4334-8556-ffeeddccbbaa';
+    const context = makeContext();
+    const request = {
+      query: new URLSearchParams({ repo: 'test-repo' }),
+      headers: new Map([['cookie', `GAGH=${existingCid}`], ['user-agent', 'TestAgent']]),
+    };
+
+    const response = await gaforgithub(request, context);
+
+    assert.strictEqual(response.status, 200,
+      `Expected status 200 but got ${response.status}`);
+    // Should preserve the existing CID in the cookie
+    const setCookie = response.headers['Set-Cookie'];
+    assert.ok(setCookie.includes(`GAGH=${existingCid}`),
+      `Expected Set-Cookie to preserve existing CID '${existingCid}' but got '${setCookie}'`);
+    // Verify GA hit was sent even for returning visitors
+    assert.ok(globalThis.fetch.mock.calls.length > 0,
+      'Expected fetch call for GA tracking even with existing cookie');
+  });
+});
+
+describe('missing repo parameter', () => {
+  it('returns HTTP 400 with descriptive error message', async () => {
+    const context = {
+      log: mock.fn(),
+      warn: mock.fn(),
+      error: mock.fn(),
+    };
+    const request = {
+      query: new URLSearchParams({}),
+      headers: new Map([['cookie', ''], ['user-agent', 'TestAgent']]),
+    };
+
+    const response = await gaforgithub(request, context);
+
+    assert.strictEqual(response.status, 400,
+      `Expected status 400 for missing repo but got ${response.status}`);
+    assert.ok(response.body.toLowerCase().includes('repo'),
+      `Expected error message to mention 'repo' but got '${response.body}'`);
   });
 });

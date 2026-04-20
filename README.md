@@ -35,6 +35,27 @@ If you do not want to display the button, use this code:
 ![](https://YYYYYY.azurewebsites.net/api?repo=XXXXXXXX&empty)
 ```
 
+## Prerequisites
+
+- **Node.js** 20 or later
+- **Azure Functions Core Tools** v4 (`npm i -g azure-functions-core-tools@4 --unsafe-perm true`)
+
+## Local Development
+
+```bash
+# Install dependencies
+cd functions/
+npm install
+
+# Run tests
+npm test
+
+# Start the function locally
+npm start
+# or use the debug script from the repo root:
+./debug.sh
+```
+
 ## Cost
 
 The deployment uses Azure Functions' [Consumption Plan](https://docs.microsoft.com/en-us/azure/azure-functions/functions-scale#consumption-plan) so you'll see that it's really cheap to host it for your projects.

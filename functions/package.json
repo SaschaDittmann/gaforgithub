@@ -1,16 +1,21 @@
 {
   "name": "googleanalyticsforgithub",
   "description": "Unofficial Google Analytics tracking for GitHub",
-  "version": "1.0.0",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"No tests yet...\""
+  "version": "2.0.0",
+  "main": "gaforgithub/index.js",
+  "engines": {
+    "node": ">=20.0.0"
   },
-  "author": "",
+  "scripts": {
+    "start": "func start",
+    "test": "node --test gaforgithub/*.test.js"
+  },
+  "author": "Sascha Dittmann",
   "license": "MIT",
   "dependencies": {
+    "@azure/functions": "^4.0.0",
     "axios": "^0.21.1",
-    "dotenv": "^8.2.0",
-    "retry": "^0.12.0"
+    "retry": "^0.12.0",
+    "dotenv": "^8.2.0"
   }
 }

@@ -15,9 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: 'Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: 'Setup Node.js ${{ env.NODE_VERSION }}'
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v5
       with:
         node-version: ${{ env.NODE_VERSION }}
     - name: 'Install dependencies'
@@ -32,37 +32,37 @@ jobs:
     needs: test
     steps:
     - name: 'Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v6
     - name: 'Setup Node.js ${{ env.NODE_VERSION }}'
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@v5
       with:
         node-version: ${{ env.NODE_VERSION }}
     - name: 'Install production dependencies'
       run: npm ci --omit=dev
       working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
     - name: 'Deploy Azure Functions to Europe'
-      uses: Azure/functions-action@v2
+      uses: Azure/functions-action@v3
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME_EU }}
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_EU }}
     - name: 'Deploy Azure Functions to the US'
-      uses: Azure/functions-action@v2
+      uses: Azure/functions-action@v3
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME_US }}
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_US }}
     - name: 'Deploy Azure Functions to Asia'
-      uses: Azure/functions-action@v2
+      uses: Azure/functions-action@v3
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME_ASIA }}
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ASIA }}
     - name: 'Deploy Azure Functions to Australia'
-      uses: Azure/functions-action@v2
+      uses: Azure/functions-action@v3
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME_AUSTRALIA }}
         slot-name: 'production'

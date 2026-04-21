@@ -1,5 +1,4 @@
 node_modules
-package-lock.json
 .eslintrc.json
 .env
 local.settings.json
@@ -101,3 +100,4 @@ override.tf.json
 # Ignore CLI configuration files
 .terraformrc
 terraform.rc
+worktrees/

@@ -1,111 +1,167 @@
-require('dotenv').config();
-const retry = require('retry');
-const axios = require('axios');
+const { app } = require("@azure/functions");
+const { fetchWithRetry } = require('./retry.js');
 const fs = require('fs');
+const path = require('path');
 
-module.exports = function (context, req) {
+/** GA4 Measurement Protocol endpoint */
+const GA4_ENDPOINT = 'https://www.google-analytics.com/mp/collect';
+
+/**
+ * Azure Function HTTP handler for Google Analytics tracking beacon.
+ * Receives requests from embedded Markdown image tags and forwards
+ * pageview events to the GA4 Measurement Protocol.
+ */
+async function gaforgithub(request, context) {
   context.log('Function received a request.');
 
-  if (req.query.repo) {
+  const repo = request.query.get('repo');
+
+  if (repo) {
     // create/get client id
     let cid = "00000000-0000-0000-0000-000000000000";
-    const cookies = parseCookies(req.headers.cookie);
+    const cookieHeader = request.headers.get('cookie') || '';
+    const cookies = parseCookies(cookieHeader);
     if ('GAGH' in cookies) {
-      context.log.verbose('Existing GAGH cookie found.');
+      context.log('Existing GAGH cookie found.');
       cid = cookies.GAGH;
     } else {
-      context.log.verbose('Creating new cid.');
-      cid = uuidv4(); //generate an anonymous client ID
+      context.log('Creating new cid.');
+      cid = uuidv4();
       cookies.GAGH = cid;
     }
-    context.log.verbose('cid: ' + cid);
+    context.log('cid: ' + cid);
 
-    trackVisit(context, req, cid, cookies);
+    await trackVisit(context, request, repo, cid, cookies);
+    return sendResponse(request, cookies);
   } else {
-    context.log.warn('Query string "repo" missing.');
-    context.res = {
+    context.warn('Query string "repo" missing.');
+    return {
       status: 400,
       body: "Please pass a repo on the query string"
     };
-    context.done();
   }
-};
+}
 
-function trackVisit(context, req, cid, cookies) {
-  context.log.verbose('Tracking visit.');
-  const repo = req.query.repo;
+/**
+ * Builds the GA4 Measurement Protocol event payload.
+ * @param {string} repo - Repository name from the query string.
+ * @param {string} cid - Client ID (UUID v4 from cookie or newly generated).
+ * @param {string} userAgent - User-Agent header value.
+ * @param {string} ip - Client IP from X-Forwarded-For header.
+ * @param {string} referer - Referer header value.
+ * @returns {object} GA4 event payload ready for JSON serialization.
+ */
+function buildGA4Payload(repo, cid, userAgent, ip, referer) {
+  const eventParams = {
+    page_location: '/' + repo,
+    engagement_time_msec: '1',
+  };
+
+  if (userAgent) {
+    eventParams.user_agent = userAgent;
+  }
+
+  if (referer) {
+    eventParams.page_referrer = referer;
+  }
+
+  // GA4 handles IP anonymization by default. When ANONYMIZE_IP is set to "1",
+  // omit IP entirely to prevent any IP-based processing.
+  const anonymizeIp = process.env.ANONYMIZE_IP === '1';
+  if (ip && !anonymizeIp) {
+    eventParams.ip_override = ip;
+  }
+
+  return {
+    client_id: cid,
+    events: [
+      {
+        name: 'page_view',
+        params: eventParams,
+      }
+    ]
+  };
+}
+
+/**
+ * Sends a pageview event to the GA4 Measurement Protocol.
+ * Uses native fetch with exponential backoff retry logic for resilience.
+ */
+async function trackVisit(context, request, repo, cid, cookies) {
+  context.log('Tracking visit.');
   let ip = "";
-  if (req.headers["x-forwarded-for"]) {
-    ip = req.headers["x-forwarded-for"].split(":")[0];
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  if (forwardedFor) {
+    ip = forwardedFor.split(":")[0];
   }
   let referer = "";
-  if (typeof req.headers['referer'] !== 'undefined') {
-    referer = req.headers['referer'];
+  const refererHeader = request.headers.get('referer');
+  if (refererHeader) {
+    referer = refererHeader;
   }
 
-  const params = new URLSearchParams({
-    v: 1,
-    tid: process.env.PROPERTY_ID,
-    cid: cid,
-    t: 'pageview',
-    dp: '/' + repo,
-    dr: referer ? referer : null,
-    aip: process.env.ANONYMIZE_IP ? process.env.ANONYMIZE_IP : null,
-    uip: ip,
-    ua: req.headers['user-agent'],
-  });
+  const measurementId = process.env.GA_MEASUREMENT_ID;
+  const apiSecret = process.env.GA_API_SECRET;
+  const userAgent = request.headers.get('user-agent') || '';
+
+  const payload = buildGA4Payload(repo, cid, userAgent, ip, referer);
+
   //GitHub currently uses Camo, so all the below details are hidden unfortunately
   //listed here in case you want to use this in an environment other than GitHub
   //https://help.github.com/articles/about-anonymized-image-urls/
-  context.log('formdata: repo=' + repo + ', referer=' + referer + ', uip=' + ip + ', cid=' + cid);
+  context.log('GA4 event: name=page_view, repo=' + repo + ', referer=' + referer + ', ip=' + ip + ', cid=' + cid);
 
-  const operation = retry.operation({
-    retries: 5,
-    minTimeout: 1 * 1000,
-    maxTimeout: 60 * 1000,
-    randomize: true,
-  });
+  const url = `${GA4_ENDPOINT}?measurement_id=${encodeURIComponent(measurementId)}&api_secret=${encodeURIComponent(apiSecret)}`;
 
-  operation.attempt(function(currentAttempt) {
-    context.log('sending request: ' + currentAttempt + ' attempt');
-    try {
-      axios.post(
-        'https://www.google-analytics.com/collect',
-        {},
-        { params: params }
-      ).then(function (response) {
-        context.log.verbose('response code: ' + response.status);
-        sendResponse(context, req, cookies);
-      })
-      .catch(function (error) {
-        context.log.error('failed sending request (' + currentAttempt + ' attempt)');
-        context.log(error);
-        if (operation.retry(error)) { return; }
-      });
-    } catch (e) {
-      context.log.error('failed request (' + currentAttempt + ' attempt)');
-      if (operation.retry(e)) { return; }
-    }
-  });
-}
-
-function sendResponse(context, req, cookies) {
-  const filename = req.query.empty === '' ? 'empty' : 'gag-green';
-  fs.readFile(require('path').resolve(__dirname, `${filename}.svg`), 'utf-8', function (err, data) {
-    context.res = {
-      status: 200,
-      headers: {
-        'Set-Cookie': stringifyCookies(cookies),
-        'Content-Type': 'image/svg+xml', //SVG tutorial: https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Getting_Started
-        'Cache-Control': 'private, no-store'
+  try {
+    const response = await fetchWithRetry(
+      url,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       },
-      isRaw: true,
-      body: data
-    };
-    context.done();
-  });
+      {
+        maxAttempts: 5,
+        minTimeout: 1000,
+        maxTimeout: 60000,
+        onRetry: (error, attempt) => {
+          context.error('GA4 request failed (attempt ' + attempt + '): ' + (error.message || error));
+        },
+      }
+    );
+
+    context.log('GA4 response status: ' + response.status);
+  } catch (error) {
+    context.error('GA4 request failed after all retries: ' + (error.message || error));
+    // Resolve gracefully — always serve the SVG even if GA tracking fails
+  }
 }
 
+/**
+ * Returns the appropriate SVG response (badge or invisible pixel)
+ * with cache-control and cookie headers.
+ */
+function sendResponse(request, cookies) {
+  const hasEmpty = request.query.has('empty');
+  const filename = hasEmpty ? 'empty' : 'gag-green';
+  const svgData = fs.readFileSync(path.resolve(__dirname, `${filename}.svg`), 'utf-8');
+
+  return {
+    status: 200,
+    headers: {
+      'Set-Cookie': stringifyCookies(cookies),
+      'Content-Type': 'image/svg+xml',
+      'Cache-Control': 'private, no-store'
+    },
+    body: svgData
+  };
+}
+
+/**
+ * Generates a UUID v4 string for anonymous client identification.
+ * @returns {string} A random UUID v4 string.
+ */
 function uuidv4() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
     var r = Math.random() * 16 | 0,
@@ -114,12 +170,16 @@ function uuidv4() {
   });
 }
 
+/**
+ * Parses a cookie header string into a key-value object.
+ * @param {string} cookie - The raw cookie header string.
+ * @returns {Object} Parsed cookies as key-value pairs.
+ */
 function parseCookies(cookie) {
-  //this is a really simple method for cookie parsing found here https://stackoverflow.com/a/31645958/1205817
-  //this may not work, however, for more 'weird' cookie values, e.g. if the cookie contains a ':'
   return (cookie && cookie.split(';').reduce(
     function (prev, curr) {
       var m = / *([^=]+)=(.*)/.exec(curr);
+      if (!m) return prev;
       var key = m[1];
       var value = decodeURIComponent(m[2]);
       prev[key] = value;
@@ -128,6 +188,11 @@ function parseCookies(cookie) {
   )) || {};
 }
 
+/**
+ * Serializes a cookie object into a Set-Cookie header string.
+ * @param {Object} cookies - Cookie key-value pairs.
+ * @returns {string} Serialized cookie string.
+ */
 function stringifyCookies(cookies) {
   var list = [];
   for (var key in cookies) {
@@ -136,12 +201,17 @@ function stringifyCookies(cookies) {
   return list.join('; ');
 }
 
-//GA documentation links and more
-//https://developers.google.com/analytics/devguides/collection/protocol/v1/devguide
-//https://developers.google.com/analytics/devguides/collection/protocol/v1/parameters
-//https://img.shields.io/badge/googleanalytics-github-green.svg
+// Register the HTTP-triggered function with Azure Functions v4 runtime
+app.http('gaforgithub', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: '{*segments}',
+  handler: gaforgithub
+});
 
+// Export utilities for testing
+module.exports = { parseCookies, stringifyCookies, uuidv4, buildGA4Payload, trackVisit, sendResponse, gaforgithub, GA4_ENDPOINT };
 
-//Azure Functions v2 will send output directly to response
-//https://stackoverflow.com/questions/47614788/how-to-return-base64-image-from-azure-function-as-binary-data?rq=1
-//more: https://stackoverflow.com/questions/43810082/azure-functions-nodejs-response-body-as-a-stream/43811778
+//GA4 Measurement Protocol documentation:
+//https://developers.google.com/analytics/devguides/collection/protocol/ga4
+//https://developers.google.com/analytics/devguides/collection/protocol/ga4/reference

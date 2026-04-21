@@ -41,28 +41,28 @@ jobs:
       run: npm ci --omit=dev
       working-directory: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
     - name: 'Deploy Azure Functions to Europe'
-      uses: Azure/functions-action@v3
+      uses: Azure/functions-action@v1
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME_EU }}
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_EU }}
     - name: 'Deploy Azure Functions to the US'
-      uses: Azure/functions-action@v3
+      uses: Azure/functions-action@v1
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME_US }}
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_US }}
     - name: 'Deploy Azure Functions to Asia'
-      uses: Azure/functions-action@v3
+      uses: Azure/functions-action@v1
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME_ASIA }}
         slot-name: 'production'
         package: ${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}
         publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_ASIA }}
     - name: 'Deploy Azure Functions to Australia'
-      uses: Azure/functions-action@v3
+      uses: Azure/functions-action@v1
       with:
         app-name: ${{ secrets.AZUREAPPSERVICE_APPNAME_AUSTRALIA }}
         slot-name: 'production'

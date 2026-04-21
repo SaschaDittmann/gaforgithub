@@ -2,7 +2,7 @@
 
 > **PRD:** [prd-ga-tracking-beacon.md](../prds/prd-ga-tracking-beacon.md)
 > **Created:** 2026-04-20
-> **Approach:** Single big-bang modernization (GA4 + Node 20 + Functions v4 + tests + CI/CD)
+> **Approach:** Single big-bang modernization (GA4 + Node 22 + Functions v4 + tests + CI/CD)
 
 ## Relevant Files
 
@@ -88,17 +88,46 @@
   - [x] 5.10 Add a CI status badge to `README.md`
   - [x] 5.11 Document the test and CI/CD setup in `README.md` — how to run tests locally, what the CI pipeline does, how deployment works
 
-- [ ] 6.0 Upgrade Node.js from 20 to 24
-  - [ ] 6.1 Verify Node.js 24 compatibility: run `npm test` locally with Node 24 to identify any breaking changes in `node:test`, `node:crypto`, or native `fetch` APIs
-  - [ ] 6.2 Update `functions/package.json`: change `engines.node` from `">=20.0.0"` to `">=24.0.0"`
-  - [ ] 6.3 Update `functions/local.settings.json` template: change `WEBSITE_NODE_DEFAULT_VERSION` from `~20` to `~24`
-  - [ ] 6.4 Update `azuredeploy.json`: change `WEBSITE_NODE_DEFAULT_VERSION` app setting from `~20` to `~24`
-  - [ ] 6.5 Update Terraform `terraform/modules/func/main.tf`: change `node_version` in `application_stack` from `~20` to `~24`, update `WEBSITE_NODE_DEFAULT_VERSION` app setting
-  - [ ] 6.6 Update `.github/workflows/master.yml` and `.github/workflows/ci.yml`: change `NODE_VERSION` from `20.x` to `24.x`
-  - [ ] 6.7 Update `debug.sh`: change Node.js version check from v20 to v24
-  - [ ] 6.8 Update `README.md`: change prerequisites from Node.js 20 to Node.js 24
-  - [ ] 6.9 Deploy to all 4 Azure regions and verify HTTP 200 responses
-  - [ ] 6.10 Remove stale `PROPERTY_ID` app setting from all 4 Azure Function Apps (cleanup from UA migration)
+- [x] 6.0 Upgrade Node.js from 20 to 22
+  - [x] 6.1 Verify Node.js 22 compatibility: run `npm test` locally with Node 22+ to identify any breaking changes in `node:test`, `node:crypto`, or native `fetch` APIs
+  - [x] 6.2 Update `functions/package.json`: change `engines.node` from `">=20.0.0"` to `">=22.0.0"`
+  - [x] 6.3 Update `functions/local.settings.json` template: change `WEBSITE_NODE_DEFAULT_VERSION` from `~20` to `~22`
+  - [x] 6.4 Update `azuredeploy.json`: change `WEBSITE_NODE_DEFAULT_VERSION` app setting from `~20` to `~22`
+  - [x] 6.5 Update Terraform `terraform/modules/func/main.tf`: change `node_version` in `application_stack` from `~20` to `~22`, update `WEBSITE_NODE_DEFAULT_VERSION` app setting
+  - [x] 6.6 Update `.github/workflows/master.yml` and `.github/workflows/ci.yml`: change `NODE_VERSION` from `20.x` to `22.x`
+  - [x] 6.7 Update `debug.sh`: change Node.js version check from v20 to v22
+  - [x] 6.8 Update `README.md`: change prerequisites from Node.js 20 to Node.js 22
+  - [x] 6.9 Deploy to all 4 Azure regions and verify HTTP 200 responses
+  - [x] 6.10 Remove stale `PROPERTY_ID` app setting from all 4 Azure Function Apps (cleanup from UA migration) — **requires Azure Portal** (`func` CLI cannot delete individual settings)
+
+## Review — Task 6.0: Upgrade Node.js from 20 to 22
+
+**Branch:** `feature/node24-upgrade`
+**PR:** https://github.com/SaschaDittmann/gaforgithub/pull/3
+**Status:** ✅ Merged into `development`
+
+### Summary
+Upgraded Node.js from 20 (EOL April 30, 2026) to 22 (Azure Functions GA, supported until April 2027). The `func` CLI misleadingly warned "Upgrade to Node.js 24" but Azure's supported LTS is actually Node.js 22.
+
+### Changes
+- `functions/package.json` — `engines.node` → `>=22.0.0`
+- `azuredeploy.json` — `WEBSITE_NODE_DEFAULT_VERSION` → `~22`
+- `terraform/modules/func/main.tf` — `node_version` → `~22`, app setting → `~22`
+- `.github/workflows/master.yml` — `NODE_VERSION` → `22.x`
+- `.github/workflows/ci.yml` — `NODE_VERSION` → `22.x`
+- `debug.sh` — Node.js version check → v22
+- `README.md` — Prerequisites → Node.js 22
+
+### Deployment Verification
+All 4 regions deployed and verified on 2026-04-20:
+- `ga4gh-eu.azurewebsites.net` — HTTP 200 ✅
+- `ga4gh-us.azurewebsites.net` — HTTP 200 ✅
+- `ga4gh-asia.azurewebsites.net` — HTTP 200 ✅
+- `ga4gh-australia.azurewebsites.net` — HTTP 200 ✅
+
+### Test Results
+50 tests, 0 failures (14 suites, 399ms) on Node v25.9.0
+
 
 ## Review — Task 1.0: Upgrade Azure Functions Runtime & Node.js
 
